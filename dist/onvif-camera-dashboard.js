@@ -365,7 +365,7 @@ class CameraDashboardCameraCard extends HTMLElement {
         background:var(--ha-card-background,var(--card-background-color,#fff));
         border-radius:var(--ha-card-border-radius,12px); }
       onvif-camera-dashboard-camera-card .hidden-camera strong { color:var(--primary-text-color); }
-      onvif-camera-dashboard-camera-card .camera-edit { position:absolute; top:8px; left:8px; z-index:1;
+      onvif-camera-dashboard-camera-card .camera-edit { position:absolute; bottom:8px; left:8px; z-index:1;
         display:flex; align-items:center; justify-content:center; width:36px; height:36px; padding:0;
         border:0; border-radius:50%; background:rgba(0,0,0,.62); color:#fff; opacity:.85;
         cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,.25); }
