@@ -13,7 +13,8 @@ A Home Assistant dashboard plugin that adds every **configured, enabled ONVIF ca
 - Native Sections views and `picture-entity` camera cards.
 - Area, floor, or custom category tabs with editable names and icons.
 - Camera order, display name, image entity, and visibility controls.
-- An admin-only **Edit camera** button on each feed for changing that camera directly; only one camera editor opens at a time.
+- A small admin-only edit icon on each feed for changing that camera directly; only one camera editor opens at a time.
+- An admin-only **Hidden** tab for restoring hidden cameras without showing them among live feeds.
 - An **Unassigned** tab for cameras without a category.
 - An administrator **Settings** tab for managing tabs, with an optional importer for an existing dashboard.
 - Multiple ONVIF profiles stay separate. A card may use a different `camera_image` entity, as in the supplied Hallway example.
@@ -38,7 +39,7 @@ strategy:
   group_by: area
 ```
 
-Open its **Settings** tab to set up the tabs. Use **Edit camera** below a feed to change that camera's name, tab, image entity, order, view, or visibility. Hidden cameras remain as editable placeholders for administrators so they can be shown again. To migrate a dashboard like the one in the project brief, expand **Import tabs from an existing dashboard**, choose the source, select **Import into draft**, review the tabs, then select **Save dashboard**. Import reads the source dashboard and updates only the new dashboard when saved.
+Open its **Settings** tab to set up the tabs. Use the pencil icon on a feed to change that camera's name, tab, image entity, order, view, or visibility. Hidden cameras appear only in the administrator **Hidden** tab, where you can edit them to show them again. To migrate a dashboard like the one in the project brief, expand **Import tabs from an existing dashboard**, choose the source, select **Import into draft**, review the tabs, then select **Save dashboard**. Import reads the source dashboard and updates only the new dashboard when saved.
 
 ## Marketplace packaging
 

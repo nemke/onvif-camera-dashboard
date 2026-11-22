@@ -127,6 +127,28 @@ test("a camera tile saves only its own settings", async () => {
   assert.equal(reloaded, true);
 });
 
+test("hiding a camera leaves its former tab", async () => {
+  const Card = elements.get("onvif-camera-dashboard-camera-card");
+  const card = new Card();
+  card._config = { camera_key: "onvif:front", camera: { entity: "camera.front" }, option: {} };
+  card._hass = { user: { is_admin: true }, callWS: async (request) => {
+    if (request.type === "lovelace/config") return {
+      strategy: { type: "custom:onvif-camera-dashboard", camera_options: {} },
+    };
+  } };
+  const fields = {
+    category: { value: "" }, name: { value: "" }, order: { value: "0" },
+    image_entity: { value: "camera.front" }, camera_view: { value: "auto" },
+    fit_mode: { value: "contain" }, hidden: { checked: true },
+  };
+  card.querySelector = () => ({ elements: { namedItem: (name) => fields[name] } });
+  card.render = () => {};
+  let destination;
+  window.location.assign = (path) => { destination = path; };
+  await card._save();
+  assert.equal(destination, "/camera-dashboard");
+});
+
 test("opening a camera editor closes the previous one", () => {
   const Card = elements.get("onvif-camera-dashboard-camera-card");
   const first = new Card();
@@ -159,7 +181,22 @@ test("a hidden camera renders an admin placeholder with an edit button", () => {
     entity: "camera.front", name: "Front camera", camera_image: "camera.front",
   }, option: { hidden: true }, image_entities: ["camera.front"], groups: [], group_by: "area" });
   card.hass = { user: { is_admin: true } };
-  assert.match(card.innerHTML, /hidden from viewers/);
+  assert.match(card.innerHTML, /Hidden from dashboard/);
   assert.match(card.innerHTML, /Edit camera/);
+  assert.doesNotMatch(card.innerHTML, /camera-toolbar/);
   assert.doesNotMatch(card.innerHTML, /class="camera-picture"/);
+});
+
+test("a visible camera has a compact edit control over its picture", () => {
+  const Card = elements.get("onvif-camera-dashboard-camera-card");
+  const card = new Card();
+  card.querySelector = () => null;
+  card._mountPicture = () => {};
+  card.setConfig({ camera_key: "onvif:front", camera: {
+    entity: "camera.front", name: "Front camera", camera_image: "camera.front",
+  }, option: {}, image_entities: ["camera.front"], groups: [], group_by: "area" });
+  card.hass = { user: { is_admin: true } };
+  assert.match(card.innerHTML, /class="camera-edit"/);
+  assert.match(card.innerHTML, /mdi:pencil/);
+  assert.doesNotMatch(card.innerHTML, /camera-toolbar/);
 });

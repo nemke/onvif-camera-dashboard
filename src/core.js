@@ -93,7 +93,10 @@ function cameraName(entry, option, hass) {
 
 export function generateDashboard(config, hass, entries) {
   const eligible = eligibleCameras(entries);
-  const cameras = eligible.filter((entry) => hass.user?.is_admin || !cameraOption(config, entry).hidden);
+  const imageEntities = eligible.map(({ entity_id }) => entity_id);
+  const cameras = eligible.filter((entry) => !cameraOption(config, entry).hidden);
+  const hiddenCameras = hass.user?.is_admin
+    ? eligible.filter((entry) => cameraOption(config, entry).hidden) : [];
   const groups = groupsFor(config, hass, cameras);
   const categoryChoices = (config.group_by === "custom" ? config.categories || []
     : config.group_by === "floor" ? Object.values(hass.floors || {}).map((floor) => ({
@@ -101,9 +104,33 @@ export function generateDashboard(config, hass, entries) {
     })) : Object.values(hass.areas || {}).map((area) => ({
       id: `area:${area.area_id}`, title: area.name,
     }))).map(({ id, title }) => ({ id, title: config.group_options?.[id]?.title || title }));
-  if (!groups.length) {
+  if (!groups.length && !hiddenCameras.length) {
     groups.push({ id: UNASSIGNED, title: "Cameras", icon: "mdi:cctv" });
   }
+
+  const cameraCard = (entry) => {
+    const option = cameraOption(config, entry);
+    const camera = {
+      type: "picture-entity",
+      entity: entry.entity_id,
+      camera_image: option.image_entity || entry.entity_id,
+      name: cameraName(entry, option, hass),
+      show_name: true,
+      show_state: false,
+      camera_view: option.camera_view || config.camera_view || "auto",
+      fit_mode: option.fit_mode || config.fit_mode || "contain",
+      tap_action: { action: option.tap_action || "none" },
+    };
+    return hass.user?.is_admin ? {
+      type: "custom:onvif-camera-dashboard-camera-card",
+      camera,
+      camera_key: cameraKey(entry),
+      option,
+      groups: categoryChoices,
+      image_entities: imageEntities,
+      group_by: config.group_by || "area",
+    } : camera;
+  };
 
   const views = groups.map((group) => {
     const groupCameras = cameras
@@ -117,29 +144,7 @@ export function generateDashboard(config, hass, entries) {
     const cards = [{
       type: "heading", heading: group.title, heading_style: "title", icon: group.icon,
     }];
-    for (const entry of groupCameras) {
-      const option = cameraOption(config, entry);
-      const camera = {
-        type: "picture-entity",
-        entity: entry.entity_id,
-        camera_image: option.image_entity || entry.entity_id,
-        name: cameraName(entry, option, hass),
-        show_name: true,
-        show_state: false,
-        camera_view: option.camera_view || config.camera_view || "auto",
-        fit_mode: option.fit_mode || config.fit_mode || "contain",
-        tap_action: { action: option.tap_action || "none" },
-      };
-      cards.push(hass.user?.is_admin ? {
-        type: "custom:onvif-camera-dashboard-camera-card",
-        camera,
-        camera_key: cameraKey(entry),
-        option,
-        groups: categoryChoices,
-        image_entities: eligible.map(({ entity_id }) => entity_id),
-        group_by: config.group_by || "area",
-      } : camera);
-    }
+    for (const entry of groupCameras) cards.push(cameraCard(entry));
     if (!groupCameras.length) {
       cards.push({ type: "markdown", content: "No ONVIF cameras in this category yet." });
     }
@@ -156,6 +161,18 @@ export function generateDashboard(config, hass, entries) {
   });
 
   if (hass.user?.is_admin) {
+    if (hiddenCameras.length) {
+      views.push({
+        title: "Hidden", path: "hidden-cameras", icon: "mdi:eye-off-outline",
+        type: "sections", max_columns: 1,
+        sections: [{ type: "grid", cards: [
+          { type: "heading", heading: "Hidden cameras", heading_style: "title", icon: "mdi:eye-off-outline" },
+          ...hiddenCameras.sort((a, b) => cameraName(a, cameraOption(config, a), hass)
+            .localeCompare(cameraName(b, cameraOption(config, b), hass))).map(cameraCard),
+        ] }],
+        cards: [],
+      });
+    }
     views.push({
       title: "Settings", path: "manage", icon: "mdi:cog", type: "sections", max_columns: 1,
       sections: [{ type: "grid", cards: [{ type: "custom:onvif-camera-dashboard-manager" }] }],

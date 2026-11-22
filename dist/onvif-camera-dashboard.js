@@ -357,38 +357,50 @@ class CameraDashboardCameraCard extends HTMLElement {
     const image = option.image_entity || this._config.camera.camera_image;
     const imageChoices = [...new Set([...this._config.image_entities, image])];
     this.innerHTML = `<style>
-      .camera-picture { display:block; }
-      .hidden-camera { display:flex; align-items:center; justify-content:center; min-height:100px;
-        padding:16px; box-sizing:border-box; text-align:center;
+      onvif-camera-dashboard-camera-card .camera-shell { position:relative; }
+      onvif-camera-dashboard-camera-card .camera-picture { display:block; }
+      onvif-camera-dashboard-camera-card .hidden-camera { display:flex; flex-direction:column;
+        justify-content:center; min-height:80px; padding:12px 16px 12px 58px; box-sizing:border-box;
         color:var(--secondary-text-color,#666);
         background:var(--ha-card-background,var(--card-background-color,#fff));
         border-radius:var(--ha-card-border-radius,12px); }
-      .camera-toolbar { display:flex; justify-content:flex-end; padding:5px 8px;
-        background:var(--ha-card-background,var(--card-background-color,#fff));
-        border-radius:0 0 var(--ha-card-border-radius,12px) var(--ha-card-border-radius,12px); }
-      button { font:inherit; cursor:pointer; border:0; border-radius:8px; padding:8px 12px;
+      onvif-camera-dashboard-camera-card .hidden-camera strong { color:var(--primary-text-color); }
+      onvif-camera-dashboard-camera-card .camera-edit { position:absolute; top:8px; left:8px; z-index:1;
+        display:flex; align-items:center; justify-content:center; width:36px; height:36px; padding:0;
+        border:0; border-radius:50%; background:rgba(0,0,0,.62); color:#fff; opacity:.85;
+        cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,.25); }
+      onvif-camera-dashboard-camera-card .camera-edit:hover,
+      onvif-camera-dashboard-camera-card .camera-edit:focus-visible { opacity:1; background:rgba(0,0,0,.85); }
+      onvif-camera-dashboard-camera-card .camera-edit ha-icon { --mdc-icon-size:20px; }
+      onvif-camera-dashboard-camera-card .camera-editor button { font:inherit; cursor:pointer; border:0;
+        border-radius:8px; padding:8px 12px;
         color:var(--primary-text-color); background:var(--secondary-background-color,#eee); }
-      button:disabled { opacity:.5; cursor:default; }
-      button.primary { color:#fff; background:var(--primary-color,#03a9f4); }
-      .camera-editor { padding:12px; margin-top:8px; border-radius:12px;
+      onvif-camera-dashboard-camera-card button:disabled { opacity:.5; cursor:default; }
+      onvif-camera-dashboard-camera-card button.primary { color:#fff; background:var(--primary-color,#03a9f4); }
+      onvif-camera-dashboard-camera-card .camera-editor { padding:12px; margin-top:8px; border-radius:12px;
         color:var(--primary-text-color); background:var(--ha-card-background,var(--card-background-color,#fff)); }
-      .camera-editor h3 { margin:0 0 12px; font-size:1rem; }
-      .camera-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
-      .camera-fields label { display:flex; flex-direction:column; gap:4px; font-size:.87rem; }
-      .camera-fields label.check { flex-direction:row; align-items:center; }
-      .camera-fields input:not([type=checkbox]), .camera-fields select { box-sizing:border-box; width:100%;
+      onvif-camera-dashboard-camera-card .camera-editor h3 { margin:0 0 12px; font-size:1rem; }
+      onvif-camera-dashboard-camera-card .camera-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+      onvif-camera-dashboard-camera-card .camera-fields label { display:flex; flex-direction:column; gap:4px; font-size:.87rem; }
+      onvif-camera-dashboard-camera-card .camera-fields label.check { flex-direction:row; align-items:center; }
+      onvif-camera-dashboard-camera-card .camera-fields input:not([type=checkbox]),
+      onvif-camera-dashboard-camera-card .camera-fields select { box-sizing:border-box; width:100%;
         min-height:38px; padding:6px 8px; font:inherit; border-radius:6px;
         color:var(--primary-text-color); background:var(--card-background-color,#fff);
         border:1px solid var(--divider-color,#aaa); }
-      .camera-actions { display:flex; gap:8px; margin-top:12px; }
-      .camera-error { color:var(--error-color,#d32f2f); margin:8px 0; }
+      onvif-camera-dashboard-camera-card .camera-actions { display:flex; gap:8px; margin-top:12px; }
+      onvif-camera-dashboard-camera-card .camera-error { color:var(--error-color,#d32f2f); margin:8px 0; }
     </style>
-    ${this._config.option?.hidden
-      ? `<div class="hidden-camera">${esc(this._config.camera.name)} is hidden from viewers. Edit this camera to show it again.</div>`
-      : `<div class="camera-picture"></div>`}
-    ${this._hass?.user?.is_admin ? `<div class="camera-toolbar"><button type="button" data-action="edit"
-      aria-expanded="${this._open}" aria-label="${this._open ? "Close editor for" : "Edit"} ${esc(this._config.camera.name)}"
-      ${this._saving ? "disabled" : ""}>${this._open ? "Close" : "Edit camera"}</button></div>` : ""}
+    <div class="camera-shell">
+      ${this._config.option?.hidden
+        ? `<div class="hidden-camera"><strong>${esc(this._config.camera.name)}</strong><span>Hidden from dashboard</span></div>`
+        : `<div class="camera-picture"></div>`}
+      ${this._pictureError ? `<div class="camera-error" role="alert">${esc(this._pictureError)}</div>` : ""}
+      ${this._hass?.user?.is_admin ? `<button class="camera-edit" type="button" data-action="edit"
+        aria-expanded="${this._open}" aria-label="${this._open ? "Close editor for" : "Edit"} ${esc(this._config.camera.name)}"
+        title="${this._open ? "Close editor" : "Edit camera"}" ${this._saving ? "disabled" : ""}>
+        <ha-icon icon="mdi:${this._open ? "close" : "pencil"}" aria-hidden="true"></ha-icon></button>` : ""}
+    </div>
     ${this._open && this._hass?.user?.is_admin ? `<div class="camera-editor">
       <h3>Edit ${esc(this._config.camera.name)}</h3>
       <form data-camera-editor>
@@ -460,7 +472,11 @@ class CameraDashboardCameraCard extends HTMLElement {
         [this._config.camera_key]: { ...raw.strategy.camera_options?.[this._config.camera_key], ...patch } };
       await this._hass.callWS({ type: "lovelace/config/save", url_path,
         config: { ...raw, strategy: { ...raw.strategy, camera_options } } });
-      window.location.reload();
+      if (patch.hidden !== Boolean(this._config.option?.hidden)) {
+        window.location.assign(`/${encodeURIComponent(url_path)}`);
+      } else {
+        window.location.reload();
+      }
     } catch (error) {
       this._error = `Save failed: ${error.message || error}`;
       this._saving = false;
