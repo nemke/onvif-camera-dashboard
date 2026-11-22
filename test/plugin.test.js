@@ -6,12 +6,20 @@ globalThis.HTMLElement = class {
   constructor() { this.isConnected = true; this.innerHTML = ""; }
   addEventListener() {}
   dispatchEvent() {}
+  querySelectorAll() { return []; }
 };
 globalThis.customElements = {
   define(name, element) { elements.set(name, element); },
   get(name) { return elements.get(name); },
+  async whenDefined(name) { assert.ok(elements.has(name)); },
 };
-globalThis.window = { customStrategies: [], location: { pathname: "/camera-dashboard/manage" } };
+elements.set("hui-heading-card", class {
+  static async getConfigElement() { elements.set("ha-selector", class {}); }
+});
+globalThis.window = {
+  customStrategies: [], location: { pathname: "/camera-dashboard/manage" },
+  loadCardHelpers: async () => ({ createCardElement: () => ({ localName: "hui-heading-card" }) }),
+};
 
 await import("../src/onvif-camera-dashboard.js");
 
@@ -49,11 +57,34 @@ test("manager loads dashboard settings when hass arrives after connection", asyn
   assert.match(manager.innerHTML, /Loading dashboard settings/);
   manager.hass = hass;
   await manager._setupPromise;
+  await manager._loadIconPicker();
   assert.equal(manager._config.group_by, "area");
   assert.match(manager.innerHTML, /Front Yard/);
   assert.match(manager.innerHTML, /Dashboard tabs/);
+  assert.match(manager.innerHTML, /<ha-selector data-group-id="area:front"/);
+  assert.doesNotMatch(manager.innerHTML, /<label>Icon<input/);
   assert.doesNotMatch(manager.innerHTML, /<h3>Cameras/);
   assert.doesNotMatch(manager.innerHTML, /<label>Camera view/);
+});
+
+test("tab icon choice updates the selected tab", () => {
+  const Manager = elements.get("onvif-camera-dashboard-manager");
+  const manager = new Manager();
+  manager._ready = true;
+  manager._iconPickerReady = true;
+  manager._hass = hass;
+  manager._dashboardPath = "camera-dashboard";
+  const picker = {
+    dataset: { groupId: "area:front", icon: "mdi:gate" },
+    addEventListener(type, handler) { if (type === "value-changed") this.onChange = handler; },
+  };
+  manager.querySelectorAll = () => [picker];
+  manager.render();
+  assert.deepEqual(picker.selector, { icon: {} });
+  assert.equal(picker.value, "mdi:gate");
+  picker.onChange({ detail: { value: "mdi:cctv" }, stopPropagation() {} });
+  assert.equal(manager._config.group_options["area:front"].icon, "mdi:cctv");
+  assert.equal(manager._status, "Unsaved changes");
 });
 
 test("manager saves only the current strategy dashboard", async () => {

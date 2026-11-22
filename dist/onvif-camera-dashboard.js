@@ -23,6 +23,8 @@ const styles = `
     button.primary { background:var(--primary-color,#03a9f4); border-color:var(--primary-color,#03a9f4); color:#fff; }
     button:disabled { opacity:.5; cursor:default; }
     .item { padding:12px; margin:8px 0; border:1px solid var(--divider-color,#ddd); border-radius:8px; }
+    .icon-select { flex:1; min-width:180px; }
+    .icon-select ha-selector { display:block; width:100%; }
     .small { flex:0 0 90px; min-width:90px; }
     .actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:18px; }
     .import { margin-top:20px; } .import summary { cursor:pointer; }
@@ -32,6 +34,24 @@ const styles = `
 
 function currentDashboardPath() {
   return decodeURIComponent(window.location.pathname.split("/").filter(Boolean)[0] || "lovelace");
+}
+
+let iconSelectorLoad;
+function loadIconSelector() {
+  if (customElements.get("ha-selector")) return Promise.resolve();
+  if (!iconSelectorLoad) {
+    iconSelectorLoad = (async () => {
+      const helpers = await window.loadCardHelpers();
+      const heading = helpers.createCardElement({ type: "heading", heading: "Icon picker" });
+      await customElements.whenDefined(heading.localName);
+      await customElements.get(heading.localName).getConfigElement();
+      await customElements.whenDefined("ha-selector");
+    })().catch((error) => {
+      iconSelectorLoad = undefined;
+      throw error;
+    });
+  }
+  return iconSelectorLoad;
 }
 
 class CameraDashboardStrategy extends HTMLElement {
@@ -74,6 +94,7 @@ class CameraDashboardEditor extends HTMLElement {
     this._loading = false;
     this._mode = "create";
     this._status = "";
+    this._iconPickerReady = false;
     this.addEventListener("change", (event) => this._change(event));
     this.addEventListener("click", (event) => this._click(event));
   }
@@ -93,6 +114,23 @@ class CameraDashboardEditor extends HTMLElement {
 
   connectedCallback() {
     this.render();
+    this._loadIconPicker();
+  }
+
+  _loadIconPicker() {
+    if (this._iconPickerReady) return Promise.resolve();
+    if (!this._iconPickerPromise) {
+      this._iconPickerPromise = loadIconSelector().then(() => {
+        this._iconPickerReady = true;
+        this._iconPickerError = "";
+      }).catch((error) => {
+        this._iconPickerError = `Could not load Home Assistant's icon picker: ${error.message || error}`;
+      }).finally(() => {
+        this._iconPickerPromise = null;
+        this.render();
+      });
+    }
+    return this._iconPickerPromise;
   }
 
   async _loadEntries() {
@@ -182,6 +220,10 @@ class CameraDashboardEditor extends HTMLElement {
         [categories[from], categories[to]] = [categories[to], categories[from]];
         this._setConfig({ ...this._config, categories });
       }
+    } else if (action === "retry-icons") {
+      this._iconPickerError = "";
+      this.render();
+      await this._loadIconPicker();
     } else if (action === "import") {
       await this._importSource();
     } else if (action === "save") {
@@ -213,7 +255,9 @@ class CameraDashboardEditor extends HTMLElement {
     return groups.map((group) => `<div class="item">
       <div class="row">
         <label>Name<input data-field="title" data-group-id="${esc(group.id)}" value="${esc(group.title)}"></label>
-        <label>Icon<input data-field="icon" data-group-id="${esc(group.id)}" value="${esc(group.icon)}" placeholder="mdi:cctv"></label>
+        <div class="icon-select">${this._iconPickerReady && this._hass
+          ? `<ha-selector data-group-id="${esc(group.id)}" data-icon="${esc(group.icon)}"></ha-selector>`
+          : `<span class="hint">${this._iconPickerError ? "Icon picker unavailable" : "Loading icons…"}</span>`}</div>
         <label class="small">Columns<input type="number" min="1" max="4" data-field="max_columns"
           data-group-id="${esc(group.id)}" value="${esc(group.max_columns || 4)}"></label>
         ${custom && group.id !== UNASSIGNED ? `<button data-action="move-category" data-group-id="${esc(group.id)}" data-offset="-1" title="Move up">↑</button>
@@ -230,6 +274,7 @@ class CameraDashboardEditor extends HTMLElement {
       <h2>Dashboard tabs</h2>
       <p>Choose how tabs are organized. Use Edit camera on a feed to change that camera.</p>
       ${this._error ? `<p class="error">${esc(this._error)}</p>` : ""}
+      ${this._iconPickerError ? `<p class="error">${esc(this._iconPickerError)} <button data-action="retry-icons">Retry</button></p>` : ""}
       <div class="row">
         <label>Organize tabs by<select data-field="group_by">
           ${[["area", "Area"], ["floor", "Floor"], ["custom", "Custom categories"]]
@@ -250,6 +295,20 @@ class CameraDashboardEditor extends HTMLElement {
         <p class="${this._status === "Saved" ? "success" : "hint"}">${esc(this._status)}</p>
       ` : ""}
     </div>`;
+    for (const picker of this.querySelectorAll("ha-selector[data-group-id]")) {
+      picker.hass = this._hass;
+      picker.selector = { icon: {} };
+      picker.value = picker.dataset.icon;
+      picker.label = "Icon";
+      picker.required = false;
+      picker.addEventListener("value-changed", (event) => {
+        event.stopPropagation();
+        this._change({ target: {
+          dataset: { field: "icon", groupId: picker.dataset.groupId },
+          value: event.detail?.value || "",
+        } });
+      });
+    }
   }
 
   async _importSource() {

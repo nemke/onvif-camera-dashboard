@@ -11,7 +11,7 @@ A Home Assistant dashboard plugin that adds every **configured, enabled ONVIF ca
 ## Features
 
 - Native Sections views and `picture-entity` camera cards.
-- Area, floor, or custom category tabs with editable names and icons.
+- Area, floor, or custom category tabs with editable names and a searchable Home Assistant icon picker.
 - Camera order, display name, image entity, and visibility controls.
 - A small admin-only edit icon on each feed for changing that camera directly; only one camera editor opens at a time.
 - An admin-only **Hidden** tab for restoring hidden cameras without showing them among live feeds.
@@ -21,15 +21,14 @@ A Home Assistant dashboard plugin that adds every **configured, enabled ONVIF ca
 
 The plugin reads camera entities that Home Assistant's ONVIF integration has already created. ONVIF network discovery, camera credentials, and stream troubleshooting remain in Home Assistant's ONVIF setup.
 
-## Install locally
+## Install from Marketplace
 
 Requires Home Assistant **2026.11.0 or newer**.
 
-1. Run `npm run build` in this repository. No dependencies need installing.
-2. Copy **both** files from `dist/` into `/config/www/community/onvif-camera-dashboard/` on Home Assistant.
-3. Add `/local/community/onvif-camera-dashboard/onvif-camera-dashboard.js` as a JavaScript module under **Settings → Dashboards → Resources**.
-4. Reload Home Assistant in the browser.
-5. Under **Settings → Dashboards**, add **ONVIF Camera Dashboard** from Community dashboards.
+1. Select the Marketplace badge above to open this repository in Home Assistant. While the catalog submission is under review, the link offers to add it as a custom repository. You can also go to **Settings → Marketplace → Add from link** and enter `nemke/onvif-camera-dashboard`.
+2. Open **ONVIF Camera Dashboard** in Marketplace and select **Install**.
+3. Reload Home Assistant in your browser. If an older version still appears, do a hard refresh.
+4. Under **Settings → Dashboards**, add **ONVIF Camera Dashboard** from Community dashboards.
 
 If the Community dashboards picker is unavailable, create a new storage-mode dashboard and use this raw configuration:
 
@@ -41,9 +40,16 @@ strategy:
 
 Open its **Settings** tab to set up the tabs. Use the pencil icon on a feed to change that camera's name, tab, image entity, order, view, or visibility. Hidden cameras appear only in the administrator **Hidden** tab, where you can edit them to show them again. To migrate a dashboard like the one in the project brief, expand **Import tabs from an existing dashboard**, choose the source, select **Import into draft**, review the tabs, then select **Save dashboard**. Import reads the source dashboard and updates only the new dashboard when saved.
 
-## Marketplace packaging
+## Manual installation
 
-The repository includes `hacs.json`, a built `dist/` folder, and a HACS validation workflow for a Dashboard plugin. Marketplace installation registers the JavaScript resource automatically. The badge above can install it as a custom repository while catalog review is pending.
+If you cannot use Marketplace, build and install the plugin directly:
+
+1. Run `npm run build` in this repository. No dependencies need installing.
+2. Copy **both** files from `dist/` into `/config/www/community/onvif-camera-dashboard/` on Home Assistant.
+3. Add `/local/community/onvif-camera-dashboard/onvif-camera-dashboard.js?v=0.1.6` as a JavaScript module under **Settings → Dashboards → Resources**.
+4. Reload Home Assistant in the browser. Change the URL version when installing a newer build.
+
+Marketplace installs register the resource automatically; keep only one resource entry for this plugin.
 
 ## Development
 
