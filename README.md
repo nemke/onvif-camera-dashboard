@@ -1,5 +1,7 @@
 # ONVIF Camera Dashboard
 
+![ONVIF Camera Dashboard icon](https://raw.githubusercontent.com/nemke/onvif-camera-dashboard/main/docs/icon.png)
+
 [![Open ONVIF Camera Dashboard in the Home Assistant Marketplace](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=nemke&repository=onvif-camera-dashboard&category=plugin)
 
 A Home Assistant dashboard plugin that adds every **configured, enabled ONVIF camera entity** to a camera dashboard. It organizes camera tabs by Home Assistant area or floor, or by categories you create. New camera entities appear automatically after ONVIF setup succeeds.
