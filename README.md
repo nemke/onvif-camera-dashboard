@@ -15,7 +15,7 @@ A Home Assistant dashboard plugin that adds every **configured, enabled ONVIF ca
 - Camera order, display name, image entity, and visibility controls.
 - An admin-only **Edit camera** button on each feed for changing that camera directly; only one camera editor opens at a time.
 - An **Unassigned** tab for cameras without a category.
-- A **Manage** tab for administrators, with an importer for an existing camera dashboard.
+- An administrator **Settings** tab for managing tabs, with an optional importer for an existing dashboard.
 - Multiple ONVIF profiles stay separate. A card may use a different `camera_image` entity, as in the supplied Hallway example.
 
 The plugin reads camera entities that Home Assistant's ONVIF integration has already created. ONVIF network discovery, camera credentials, and stream troubleshooting remain in Home Assistant's ONVIF setup.
@@ -38,7 +38,7 @@ strategy:
   group_by: area
 ```
 
-Open its **Manage** tab to change the grouping and camera settings. To migrate a dashboard like the one in the project brief, choose that dashboard under **Import an existing dashboard**, select **Import into draft**, review the categories and camera rows, then select **Save dashboard**. Import reads the source dashboard and updates only the new dashboard when saved.
+Open its **Settings** tab to set up the tabs. Use **Edit camera** below a feed to change that camera's name, tab, image entity, order, view, or visibility. Hidden cameras remain as editable placeholders for administrators so they can be shown again. To migrate a dashboard like the one in the project brief, expand **Import tabs from an existing dashboard**, choose the source, select **Import into draft**, review the tabs, then select **Save dashboard**. Import reads the source dashboard and updates only the new dashboard when saved.
 
 ## Marketplace packaging
 
@@ -55,7 +55,7 @@ The strategy and management UI are in `src/onvif-camera-dashboard.js`. Camera fi
 
 ## Notes
 
-- The Manage tab is generated only for Home Assistant administrators. Other users can view the camera tabs.
+- The Settings tab is generated only for Home Assistant administrators. Other users can view the camera tabs.
 - Camera assignments are stored in this dashboard's strategy configuration. The management UI saves through Home Assistant's dashboard WebSocket API.
 - Enabled ONVIF camera entities are included even if their current state is `unavailable`; disabled entities have no usable card until enabled in Home Assistant.
 - The plugin does not change ONVIF integrations, camera credentials, existing dashboards, or Home Assistant area and floor assignments.

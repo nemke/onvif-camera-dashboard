@@ -1,7 +1,4 @@
-import {
-  STRATEGY_TYPE, UNASSIGNED, cameraKey, cameraOption, eligibleCameras,
-  generateDashboard, importDashboard,
-} from "./core.js";
+import { STRATEGY_TYPE, UNASSIGNED, eligibleCameras, generateDashboard, importDashboard } from "./core.js";
 
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -26,9 +23,9 @@ const styles = `
     button.primary { background:var(--primary-color,#03a9f4); border-color:var(--primary-color,#03a9f4); color:#fff; }
     button:disabled { opacity:.5; cursor:default; }
     .item { padding:12px; margin:8px 0; border:1px solid var(--divider-color,#ddd); border-radius:8px; }
-    .item-title { font-weight:600; overflow-wrap:anywhere; }
     .small { flex:0 0 90px; min-width:90px; }
     .actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:18px; }
+    .import { margin-top:20px; } .import summary { cursor:pointer; }
     .error { color:var(--error-color,#d32f2f); }
     .success { color:var(--success-color,#2e7d32); }
   </style>`;
@@ -127,20 +124,11 @@ class CameraDashboardEditor extends HTMLElement {
     this.render();
   }
 
-  _setCamera(entry, patch) {
-    const key = cameraKey(entry);
-    const option = { ...cameraOption(this._config, entry), ...patch };
-    this._setConfig({
-      ...this._config,
-      camera_options: { ...this._config.camera_options, [key]: option },
-    });
-  }
-
   _change(event) {
     const field = event.target?.dataset?.field;
     if (!field) return;
     const value = event.target.type === "checkbox" ? event.target.checked : event.target.value;
-    if (field === "group_by" || field === "camera_view" || field === "fit_mode") {
+    if (field === "group_by") {
       this._setConfig({ ...this._config, [field]: value });
       return;
     }
@@ -162,13 +150,7 @@ class CameraDashboardEditor extends HTMLElement {
           },
         });
       }
-      return;
     }
-    const entityId = event.target.dataset.entityId;
-    const entry = this._entries.find((item) => item.entity_id === entityId);
-    if (entry) this._setCamera(entry, {
-      [field]: field === "order" ? Number(value) : value,
-    });
   }
 
   async _click(event) {
@@ -178,7 +160,7 @@ class CameraDashboardEditor extends HTMLElement {
       const id = `custom:${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
       this._setConfig({
         ...this._config, categories: [...(this._config.categories || []),
-          { id, title: "New category", icon: "mdi:cctv", max_columns: 4 }],
+          { id, title: "New tab", icon: "mdi:cctv", max_columns: 4 }],
       });
     } else if (action === "remove-category") {
       const id = event.target.dataset.groupId;
@@ -241,68 +223,29 @@ class CameraDashboardEditor extends HTMLElement {
     </div>`).join("");
   }
 
-  _cameraRows() {
-    if (!this._entries.length) return `<p class="hint">No configured ONVIF camera entities found.</p>`;
-    const groups = this._groupOptions();
-    return this._entries.map((entry) => {
-      const option = cameraOption(this._config, entry);
-      const selected = option.category === undefined ? "" : option.category;
-      const name = this._hass?.states?.[entry.entity_id]?.attributes?.friendly_name || entry.name || entry.entity_id;
-      const image = option.image_entity || entry.entity_id;
-      const imageChoices = this._entries.some((item) => item.entity_id === image)
-        ? this._entries : [...this._entries, { entity_id: image }];
-      return `<div class="item">
-        <div class="item-title">${esc(name)}</div><div class="hint">${esc(entry.entity_id)}</div>
-        <div class="row">
-          <label>Category<select data-field="category" data-entity-id="${esc(entry.entity_id)}">
-            <option value="" ${selected === "" ? "selected" : ""}>${this._config.group_by === "custom" ? "Unassigned" : "Automatic"}</option>
-            ${groups.map((group) => `<option value="${esc(group.id)}" ${selected === group.id ? "selected" : ""}>${esc(group.title)}</option>`).join("")}
-            <option value="${UNASSIGNED}" ${selected === UNASSIGNED ? "selected" : ""}>Unassigned</option>
-          </select></label>
-          <label>Display name<input data-field="name" data-entity-id="${esc(entry.entity_id)}"
-            value="${esc(option.name || "")}" placeholder="${esc(name)}"></label>
-          <label class="small">Order<input type="number" data-field="order" data-entity-id="${esc(entry.entity_id)}"
-            value="${esc(option.order || 0)}"></label>
-          <label class="check"><input type="checkbox" data-field="hidden" data-entity-id="${esc(entry.entity_id)}"
-            ${option.hidden ? "checked" : ""}> Hide</label>
-        </div>
-        <div class="row"><label>Image / stream entity<select data-field="image_entity" data-entity-id="${esc(entry.entity_id)}">
-          ${imageChoices.map((item) => `<option value="${esc(item.entity_id)}" ${image === item.entity_id ? "selected" : ""}>${esc(item.entity_id)}</option>`).join("")}
-        </select></label></div>
-      </div>`;
-    }).join("");
-  }
-
   render() {
     if (!this.isConnected) return;
     const custom = this._config.group_by === "custom";
     this.innerHTML = `${styles}<div class="panel">
-      <h2>ONVIF Camera Dashboard</h2>
-      <p>Configured ONVIF cameras appear automatically. Organize their dashboard tabs below.</p>
+      <h2>Dashboard tabs</h2>
+      <p>Choose how tabs are organized. Use Edit camera on a feed to change that camera.</p>
       ${this._error ? `<p class="error">${esc(this._error)}</p>` : ""}
       <div class="row">
-        <label>Group cameras by<select data-field="group_by">
+        <label>Organize tabs by<select data-field="group_by">
           ${[["area", "Area"], ["floor", "Floor"], ["custom", "Custom categories"]]
             .map(([value, title]) => `<option value="${value}" ${this._config.group_by === value ? "selected" : ""}>${title}</option>`).join("")}
         </select></label>
-        <label>Camera view<select data-field="camera_view">
-          ${["auto", "live"].map((value) => `<option value="${value}" ${this._config.camera_view === value ? "selected" : ""}>${value}</option>`).join("")}
-        </select></label>
-        <label>Image fit<select data-field="fit_mode">
-          ${["contain", "cover", "fill"].map((value) => `<option value="${value}" ${(this._config.fit_mode || "contain") === value ? "selected" : ""}>${value}</option>`).join("")}
-        </select></label>
       </div>
-      <h3>Categories</h3>${this._groupRows()}
-      ${custom ? `<button data-action="add-category">Add category</button>` : ""}
-      <h3>Cameras (${this._entries.length})</h3>${this._cameraRows()}
+      <h3>Tabs</h3>${this._groupRows()}
+      ${custom ? `<button data-action="add-category">Add tab</button>` : ""}
       ${this._mode === "manage" ? `
-        <h3>Import an existing dashboard</h3>
+        <details class="import"><summary>Import tabs from an existing dashboard</summary>
         <div class="row"><label>Source dashboard<select id="source-dashboard">
           <option value="">Choose dashboard</option>
           ${this._dashboards.filter((item) => item.url_path && item.url_path !== this._dashboardPath)
             .map((item) => `<option value="${esc(item.url_path)}">${esc(item.title || item.url_path)}</option>`).join("")}
         </select></label><button data-action="import">Import into draft</button></div>
-        <p class="hint">Imports camera cards, tab names, icons, order, and layout. Review the draft before saving.</p>
+        <p class="hint">Imports tab names, icons, layout, and camera placement. Review the tabs before saving.</p></details>
         <div class="actions"><button class="primary" data-action="save">Save dashboard</button></div>
         <p class="${this._status === "Saved" ? "success" : "hint"}">${esc(this._status)}</p>
       ` : ""}
@@ -321,7 +264,7 @@ class CameraDashboardEditor extends HTMLElement {
         return;
       }
       this._setConfig(config);
-      this._status = `Imported ${importedCameras} camera cards into the draft. Review and save.`;
+      this._status = `Imported ${importedCameras} cameras into the tab layout. Review tabs and save.`;
       this.render();
     } catch (error) {
       this._status = `Import failed: ${error.message || error}`;
@@ -388,6 +331,7 @@ class CameraDashboardCameraCard extends HTMLElement {
   getCardSize() { return this._open ? 5 : 3; }
 
   async _mountPicture() {
+    if (this._config?.option?.hidden) return;
     if (this._picture) {
       this.querySelector(".camera-picture")?.replaceChildren(this._picture);
       return;
@@ -414,6 +358,11 @@ class CameraDashboardCameraCard extends HTMLElement {
     const imageChoices = [...new Set([...this._config.image_entities, image])];
     this.innerHTML = `<style>
       .camera-picture { display:block; }
+      .hidden-camera { display:flex; align-items:center; justify-content:center; min-height:100px;
+        padding:16px; box-sizing:border-box; text-align:center;
+        color:var(--secondary-text-color,#666);
+        background:var(--ha-card-background,var(--card-background-color,#fff));
+        border-radius:var(--ha-card-border-radius,12px); }
       .camera-toolbar { display:flex; justify-content:flex-end; padding:5px 8px;
         background:var(--ha-card-background,var(--card-background-color,#fff));
         border-radius:0 0 var(--ha-card-border-radius,12px) var(--ha-card-border-radius,12px); }
@@ -434,7 +383,9 @@ class CameraDashboardCameraCard extends HTMLElement {
       .camera-actions { display:flex; gap:8px; margin-top:12px; }
       .camera-error { color:var(--error-color,#d32f2f); margin:8px 0; }
     </style>
-    <div class="camera-picture"></div>
+    ${this._config.option?.hidden
+      ? `<div class="hidden-camera">${esc(this._config.camera.name)} is hidden from viewers. Edit this camera to show it again.</div>`
+      : `<div class="camera-picture"></div>`}
     ${this._hass?.user?.is_admin ? `<div class="camera-toolbar"><button type="button" data-action="edit"
       aria-expanded="${this._open}" aria-label="${this._open ? "Close editor for" : "Edit"} ${esc(this._config.camera.name)}"
       ${this._saving ? "disabled" : ""}>${this._open ? "Close" : "Edit camera"}</button></div>` : ""}
@@ -467,7 +418,7 @@ class CameraDashboardCameraCard extends HTMLElement {
     </div>` : ""}`;
     const form = this.querySelector("form[data-camera-editor]");
     form?.addEventListener("submit", (event) => { event.preventDefault(); this._save(); });
-    this._mountPicture();
+    if (!this._config.option?.hidden) this._mountPicture();
   }
 
   _click(event) {

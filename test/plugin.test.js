@@ -39,7 +39,7 @@ test("plugin registers a community dashboard strategy and generates an admin man
   assert.equal(window.customStrategies[0].strategyType, "dashboard");
   const Strategy = elements.get("ll-strategy-dashboard-onvif-camera-dashboard");
   const output = await Strategy.generate({ group_by: "area" }, hass);
-  assert.deepEqual(output.views.map((view) => view.title), ["Front Yard", "Manage"]);
+  assert.deepEqual(output.views.map((view) => view.title), ["Front Yard", "Settings"]);
 });
 
 test("manager loads dashboard settings when hass arrives after connection", async () => {
@@ -51,6 +51,9 @@ test("manager loads dashboard settings when hass arrives after connection", asyn
   await manager._setupPromise;
   assert.equal(manager._config.group_by, "area");
   assert.match(manager.innerHTML, /Front Yard/);
+  assert.match(manager.innerHTML, /Dashboard tabs/);
+  assert.doesNotMatch(manager.innerHTML, /<h3>Cameras/);
+  assert.doesNotMatch(manager.innerHTML, /<label>Camera view/);
 });
 
 test("manager saves only the current strategy dashboard", async () => {
@@ -146,4 +149,17 @@ test("camera tile shows admin controls when hass arrives after configuration", (
   card.render = () => { renders++; };
   card.hass = { user: { is_admin: true } };
   assert.equal(renders, 1);
+});
+
+test("a hidden camera renders an admin placeholder with an edit button", () => {
+  const Card = elements.get("onvif-camera-dashboard-camera-card");
+  const card = new Card();
+  card.querySelector = () => null;
+  card.setConfig({ camera_key: "onvif:front", camera: {
+    entity: "camera.front", name: "Front camera", camera_image: "camera.front",
+  }, option: { hidden: true }, image_entities: ["camera.front"], groups: [], group_by: "area" });
+  card.hass = { user: { is_admin: true } };
+  assert.match(card.innerHTML, /hidden from viewers/);
+  assert.match(card.innerHTML, /Edit camera/);
+  assert.doesNotMatch(card.innerHTML, /class="camera-picture"/);
 });

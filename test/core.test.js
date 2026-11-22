@@ -34,7 +34,7 @@ test("only enabled ONVIF camera entities are included, with profiles kept separa
     "camera.gate_profile001", "camera.gate_profile101", "camera.hall_profile001",
   ]);
   const dashboard = generateDashboard({ group_by: "area" }, hass, entries);
-  assert.deepEqual(dashboard.views.map((view) => view.title), ["Front Yard", "Hall", "Manage"]);
+  assert.deepEqual(dashboard.views.map((view) => view.title), ["Front Yard", "Hall", "Settings"]);
   assert.equal(dashboard.views[0].sections[0].cards.length, 3);
   assert.equal(dashboard.views[0].sections[0].cards[1].type, "custom:onvif-camera-dashboard-camera-card");
   assert.equal(dashboard.views[0].sections[0].cards[1].camera.fit_mode, "contain");
@@ -49,6 +49,17 @@ test("a newly registered ONVIF camera appears without editing the dashboard conf
   const after = generateDashboard(config, hass, entries.slice(0, 2));
   assert.equal(before.views[0].sections[0].cards.length, 2);
   assert.equal(after.views[0].sections[0].cards.length, 3);
+});
+
+test("hidden cameras remain editable for admins but disappear for viewers", () => {
+  const config = { group_by: "area", camera_options: {
+    [cameraKey(entries[0])]: { hidden: true },
+  } };
+  const admin = generateDashboard(config, hass, entries.slice(0, 1));
+  const viewer = generateDashboard(config, { ...hass, user: { is_admin: false } }, entries.slice(0, 1));
+  assert.equal(admin.views[0].sections[0].cards[1].option.hidden, true);
+  assert.equal(admin.views[0].sections[0].cards[1].type, "custom:onvif-camera-dashboard-camera-card");
+  assert.equal(viewer.views[0].sections[0].cards[1].type, "markdown");
 });
 
 test("area and floor assignment follow Home Assistant registries, with an override", () => {

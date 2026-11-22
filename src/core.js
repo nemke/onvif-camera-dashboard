@@ -92,7 +92,8 @@ function cameraName(entry, option, hass) {
 }
 
 export function generateDashboard(config, hass, entries) {
-  const cameras = eligibleCameras(entries).filter((entry) => !cameraOption(config, entry).hidden);
+  const eligible = eligibleCameras(entries);
+  const cameras = eligible.filter((entry) => hass.user?.is_admin || !cameraOption(config, entry).hidden);
   const groups = groupsFor(config, hass, cameras);
   const categoryChoices = (config.group_by === "custom" ? config.categories || []
     : config.group_by === "floor" ? Object.values(hass.floors || {}).map((floor) => ({
@@ -135,7 +136,7 @@ export function generateDashboard(config, hass, entries) {
         camera_key: cameraKey(entry),
         option,
         groups: categoryChoices,
-        image_entities: eligibleCameras(entries).map(({ entity_id }) => entity_id),
+        image_entities: eligible.map(({ entity_id }) => entity_id),
         group_by: config.group_by || "area",
       } : camera);
     }
@@ -156,7 +157,7 @@ export function generateDashboard(config, hass, entries) {
 
   if (hass.user?.is_admin) {
     views.push({
-      title: "Manage", path: "manage", icon: "mdi:cog", type: "sections", max_columns: 1,
+      title: "Settings", path: "manage", icon: "mdi:cog", type: "sections", max_columns: 1,
       sections: [{ type: "grid", cards: [{ type: "custom:onvif-camera-dashboard-manager" }] }],
       cards: [],
     });
