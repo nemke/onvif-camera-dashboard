@@ -6,6 +6,7 @@ globalThis.HTMLElement = class {
   constructor() { this.isConnected = true; this.innerHTML = ""; }
   addEventListener() {}
   dispatchEvent() {}
+  querySelector() { return null; }
   querySelectorAll() { return []; }
 };
 globalThis.customElements = {
@@ -61,6 +62,7 @@ test("manager loads dashboard settings when hass arrives after connection", asyn
   assert.equal(manager._config.group_by, "area");
   assert.match(manager.innerHTML, /Front Yard/);
   assert.match(manager.innerHTML, /Dashboard tabs/);
+  assert.match(manager.innerHTML, /Camera columns/);
   assert.match(manager.innerHTML, /<ha-selector data-group-id="area:front"/);
   assert.doesNotMatch(manager.innerHTML, /<label>Icon<input/);
   assert.doesNotMatch(manager.innerHTML, /<h3>Cameras/);
@@ -147,15 +149,16 @@ test("a camera tile saves only its own settings", async () => {
   };
   card.querySelector = () => ({ elements: { namedItem: (name) => fields[name] } });
   card.render = () => {};
-  let reloaded = false;
-  window.location.reload = () => { reloaded = true; };
+  let refreshed = false;
+  card.dispatchEvent = (event) => { refreshed = event.type === "config-refresh"; };
   await card._save();
   const saved = requests.find((request) => request.type === "lovelace/config/save").config;
   assert.equal(saved.background, "original");
   assert.deepEqual(saved.strategy.camera_options["onvif:other"], { name: "Other", hidden: true });
   assert.equal(saved.strategy.camera_options["onvif:front"].name, "Front gate");
   assert.equal(saved.strategy.camera_options["onvif:front"].order, 2);
-  assert.equal(reloaded, true);
+  assert.equal(refreshed, true);
+  assert.equal(card._open, false);
 });
 
 test("hiding a camera leaves its former tab", async () => {
@@ -174,10 +177,10 @@ test("hiding a camera leaves its former tab", async () => {
   };
   card.querySelector = () => ({ elements: { namedItem: (name) => fields[name] } });
   card.render = () => {};
-  let destination;
-  window.location.assign = (path) => { destination = path; };
+  let refreshed = false;
+  card.dispatchEvent = (event) => { refreshed = event.type === "config-refresh"; };
   await card._save();
-  assert.equal(destination, "/camera-dashboard");
+  assert.equal(refreshed, true);
 });
 
 test("opening a camera editor closes the previous one", () => {
@@ -193,6 +196,26 @@ test("opening a camera editor closes the previous one", () => {
   assert.equal(first._open, false);
   assert.equal(second._open, true);
   second.disconnectedCallback();
+});
+
+test("camera editor uses a modal with common and advanced settings", () => {
+  const Card = elements.get("onvif-camera-dashboard-camera-card");
+  const card = new Card();
+  let opened = false;
+  const dialog = { addEventListener() {}, showModal() { opened = true; }, close() {} };
+  card.querySelector = (selector) => selector === "dialog.camera-dialog" ? dialog : null;
+  card._mountPicture = () => {};
+  card.setConfig({ camera_key: "onvif:front", camera: {
+    entity: "camera.front", name: "Front camera", camera_image: "camera.front",
+  }, option: {}, image_entities: ["camera.front"], groups: [], group_by: "area" });
+  card.hass = { user: { is_admin: true } };
+  card._click({ target: { closest: () => ({ dataset: { action: "edit" } }) } });
+  assert.equal(opened, true);
+  assert.match(card.innerHTML, /<dialog class="camera-dialog"/);
+  assert.match(card.innerHTML, /<details class="camera-advanced">/);
+  assert.ok(card.innerHTML.indexOf("Display name") < card.innerHTML.indexOf("Advanced settings"));
+  card._closeEditor();
+  assert.equal(card._open, false);
 });
 
 test("camera tile shows admin controls when hass arrives after configuration", () => {
@@ -229,5 +252,7 @@ test("a visible camera has a compact edit control over its picture", () => {
   card.hass = { user: { is_admin: true } };
   assert.match(card.innerHTML, /class="camera-edit"/);
   assert.match(card.innerHTML, /mdi:pencil/);
+  assert.match(card.innerHTML, /width:44px; height:44px/);
+  assert.deepEqual(card.getGridOptions(), { columns: 12, rows: "auto" });
   assert.doesNotMatch(card.innerHTML, /camera-toolbar/);
 });

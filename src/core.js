@@ -141,21 +141,19 @@ export function generateDashboard(config, hass, entries) {
         return (Number(left.order) || 0) - (Number(right.order) || 0)
           || cameraName(a, left, hass).localeCompare(cameraName(b, right, hass));
       });
-    const cards = [{
-      type: "heading", heading: group.title, heading_style: "title", icon: group.icon,
-    }];
-    for (const entry of groupCameras) cards.push(cameraCard(entry));
-    if (!groupCameras.length) {
-      cards.push({ type: "markdown", content: "No ONVIF cameras in this category yet." });
-    }
+    const sections = groupCameras.length
+      ? groupCameras.map((entry) => ({ type: "grid", cards: [cameraCard(entry)] }))
+      : [{ type: "grid", cards: [{
+        type: "markdown", content: "No ONVIF cameras in this category yet.",
+      }] }];
     return {
       type: "sections",
       path: group.id === UNASSIGNED ? "unassigned" : `camera-${slug(group.id)}`,
       title: group.title,
       icon: group.icon,
       show_icon_and_title: true,
-      max_columns: Math.max(1, Math.min(4, Number(group.max_columns) || 4)),
-      sections: [{ type: "grid", cards }],
+      max_columns: Math.max(1, Math.min(4, Number(group.max_columns) || 2)),
+      sections,
       cards: [],
     };
   });
@@ -199,7 +197,7 @@ export function importDashboard(source, base = {}, entries = null) {
     const id = `custom:${slug(view.path || title)}-${viewIndex}`;
     next.categories.push({
       id, title, icon: view.icon || heading?.icon || "mdi:cctv",
-      max_columns: view.max_columns || 4,
+      max_columns: view.max_columns || 2,
     });
     for (const [index, card] of cameras.entries()) {
       const entry = entries?.find((item) => item.entity_id === card.entity);
