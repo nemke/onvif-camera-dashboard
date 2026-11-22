@@ -13,6 +13,7 @@ A Home Assistant dashboard plugin that adds every **configured, enabled ONVIF ca
 - Native Sections views and `picture-entity` camera cards.
 - Area, floor, or custom category tabs with editable names and icons.
 - Camera order, display name, image entity, and visibility controls.
+- An admin-only **Edit camera** button on each feed for changing that camera directly; only one camera editor opens at a time.
 - An **Unassigned** tab for cameras without a category.
 - A **Manage** tab for administrators, with an importer for an existing camera dashboard.
 - Multiple ONVIF profiles stay separate. A card may use a different `camera_image` entity, as in the supplied Hallway example.

@@ -36,7 +36,11 @@ test("only enabled ONVIF camera entities are included, with profiles kept separa
   const dashboard = generateDashboard({ group_by: "area" }, hass, entries);
   assert.deepEqual(dashboard.views.map((view) => view.title), ["Front Yard", "Hall", "Manage"]);
   assert.equal(dashboard.views[0].sections[0].cards.length, 3);
-  assert.equal(dashboard.views[0].sections[0].cards[1].fit_mode, "contain");
+  assert.equal(dashboard.views[0].sections[0].cards[1].type, "custom:onvif-camera-dashboard-camera-card");
+  assert.equal(dashboard.views[0].sections[0].cards[1].camera.fit_mode, "contain");
+  assert.equal(dashboard.views[0].sections[0].cards[1].camera_key, "onvif:gate-001");
+  const viewer = generateDashboard({ group_by: "area" }, { ...hass, user: { is_admin: false } }, entries);
+  assert.equal(viewer.views[0].sections[0].cards[1].type, "picture-entity");
 });
 
 test("a newly registered ONVIF camera appears without editing the dashboard config", () => {
@@ -73,8 +77,8 @@ test("import preserves tabs, order, and a different image entity", () => {
   assert.equal(config.camera_options["camera.hall_profile001"].image_entity, "camera.hall_profile000");
   const dashboard = generateDashboard(config, hass, entries);
   assert.equal(dashboard.views[0].title, "Front Yard");
-  assert.equal(dashboard.views[0].sections[0].cards[1].name, "Wall");
-  assert.equal(dashboard.views[1].sections[0].cards[1].camera_image, "camera.hall_profile000");
+  assert.equal(dashboard.views[0].sections[0].cards[1].camera.name, "Wall");
+  assert.equal(dashboard.views[1].sections[0].cards[1].camera.camera_image, "camera.hall_profile000");
   const matched = importDashboard(source, {}, entries);
   assert.equal(matched.config.camera_options["onvif:hall-001"].image_entity, "camera.hall_profile000");
 });

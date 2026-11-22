@@ -351,6 +351,173 @@ class CameraDashboardEditor extends HTMLElement {
   }
 }
 
+class CameraDashboardCameraCard extends HTMLElement {
+  constructor() {
+    super();
+    this._open = false;
+    this._saving = false;
+    this.addEventListener("click", (event) => this._click(event));
+  }
+
+  setConfig(config) {
+    if (!config?.camera?.entity || !config.camera_key) throw new Error("Camera card configuration is incomplete.");
+    this._config = config;
+    this._picture = null;
+    this._picturePromise = null;
+    this._pictureError = "";
+    this._open = false;
+    this._draft = null;
+    this.render();
+  }
+
+  set hass(hass) {
+    const wasAdmin = this._hass?.user?.is_admin;
+    this._hass = hass;
+    if (this._picture) this._picture.hass = hass;
+    if (wasAdmin !== hass.user?.is_admin) this.render();
+  }
+
+  get hass() { return this._hass; }
+
+  connectedCallback() { this.render(); }
+
+  disconnectedCallback() {
+    if (CameraDashboardCameraCard.activeEditor === this) CameraDashboardCameraCard.activeEditor = null;
+  }
+
+  getCardSize() { return this._open ? 5 : 3; }
+
+  async _mountPicture() {
+    if (this._picture) {
+      this.querySelector(".camera-picture")?.replaceChildren(this._picture);
+      return;
+    }
+    if (this._picturePromise || this._pictureError || !this._config) return;
+    this._picturePromise = (async () => {
+      try {
+        const helpers = await window.loadCardHelpers();
+        this._picture = helpers.createCardElement(this._config.camera);
+        if (this._hass) this._picture.hass = this._hass;
+        this.querySelector(".camera-picture")?.replaceChildren(this._picture);
+      } catch (error) {
+        this._pictureError = `Could not load camera card: ${error.message || error}`;
+        this.render();
+      }
+    })();
+    await this._picturePromise;
+  }
+
+  render() {
+    if (!this.isConnected || !this._config) return;
+    const option = this._draft || this._config.option || {};
+    const image = option.image_entity || this._config.camera.camera_image;
+    const imageChoices = [...new Set([...this._config.image_entities, image])];
+    this.innerHTML = `<style>
+      .camera-picture { display:block; }
+      .camera-toolbar { display:flex; justify-content:flex-end; padding:5px 8px;
+        background:var(--ha-card-background,var(--card-background-color,#fff));
+        border-radius:0 0 var(--ha-card-border-radius,12px) var(--ha-card-border-radius,12px); }
+      button { font:inherit; cursor:pointer; border:0; border-radius:8px; padding:8px 12px;
+        color:var(--primary-text-color); background:var(--secondary-background-color,#eee); }
+      button:disabled { opacity:.5; cursor:default; }
+      button.primary { color:#fff; background:var(--primary-color,#03a9f4); }
+      .camera-editor { padding:12px; margin-top:8px; border-radius:12px;
+        color:var(--primary-text-color); background:var(--ha-card-background,var(--card-background-color,#fff)); }
+      .camera-editor h3 { margin:0 0 12px; font-size:1rem; }
+      .camera-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+      .camera-fields label { display:flex; flex-direction:column; gap:4px; font-size:.87rem; }
+      .camera-fields label.check { flex-direction:row; align-items:center; }
+      .camera-fields input:not([type=checkbox]), .camera-fields select { box-sizing:border-box; width:100%;
+        min-height:38px; padding:6px 8px; font:inherit; border-radius:6px;
+        color:var(--primary-text-color); background:var(--card-background-color,#fff);
+        border:1px solid var(--divider-color,#aaa); }
+      .camera-actions { display:flex; gap:8px; margin-top:12px; }
+      .camera-error { color:var(--error-color,#d32f2f); margin:8px 0; }
+    </style>
+    <div class="camera-picture"></div>
+    ${this._hass?.user?.is_admin ? `<div class="camera-toolbar"><button type="button" data-action="edit"
+      aria-expanded="${this._open}" aria-label="${this._open ? "Close editor for" : "Edit"} ${esc(this._config.camera.name)}"
+      ${this._saving ? "disabled" : ""}>${this._open ? "Close" : "Edit camera"}</button></div>` : ""}
+    ${this._open && this._hass?.user?.is_admin ? `<div class="camera-editor">
+      <h3>Edit ${esc(this._config.camera.name)}</h3>
+      <form data-camera-editor>
+        <div class="camera-fields">
+          <label>Category<select name="category">
+            <option value="" ${!option.category ? "selected" : ""}>${this._config.group_by === "custom" ? "Unassigned" : "Automatic"}</option>
+            ${this._config.groups.map((group) => `<option value="${esc(group.id)}" ${option.category === group.id ? "selected" : ""}>${esc(group.title)}</option>`).join("")}
+            <option value="${UNASSIGNED}" ${option.category === UNASSIGNED ? "selected" : ""}>Unassigned</option>
+          </select></label>
+          <label>Display name<input name="name" value="${esc(option.name || "")}" placeholder="${esc(this._config.camera.name)}"></label>
+          <label>Order<input name="order" type="number" value="${esc(option.order || 0)}"></label>
+          <label>Image / stream entity<select name="image_entity">
+            ${imageChoices.map((entity) => `<option value="${esc(entity)}" ${image === entity ? "selected" : ""}>${esc(entity)}</option>`).join("")}
+          </select></label>
+          <label>Camera view<select name="camera_view">
+            ${["auto", "live"].map((value) => `<option value="${value}" ${(option.camera_view || this._config.camera.camera_view) === value ? "selected" : ""}>${value}</option>`).join("")}
+          </select></label>
+          <label>Image fit<select name="fit_mode">
+            ${["contain", "cover", "fill"].map((value) => `<option value="${value}" ${(option.fit_mode || this._config.camera.fit_mode) === value ? "selected" : ""}>${value}</option>`).join("")}
+          </select></label>
+          <label class="check"><input name="hidden" type="checkbox" ${option.hidden ? "checked" : ""}> Hide camera</label>
+        </div>
+        ${this._error ? `<p class="camera-error" role="alert">${esc(this._error)}</p>` : ""}
+        <div class="camera-actions"><button type="submit" class="primary" ${this._saving ? "disabled" : ""}>${this._saving ? "Saving…" : "Save camera"}</button>
+          <button type="button" data-action="cancel" ${this._saving ? "disabled" : ""}>Cancel</button></div>
+      </form>
+    </div>` : ""}`;
+    const form = this.querySelector("form[data-camera-editor]");
+    form?.addEventListener("submit", (event) => { event.preventDefault(); this._save(); });
+    this._mountPicture();
+  }
+
+  _click(event) {
+    const action = event.target?.closest?.("button[data-action]")?.dataset.action;
+    if (action !== "edit" && action !== "cancel") return;
+    if (this._saving) return;
+    const opening = action === "edit" && !this._open;
+    if (opening && CameraDashboardCameraCard.activeEditor && CameraDashboardCameraCard.activeEditor !== this) {
+      CameraDashboardCameraCard.activeEditor._open = false;
+      CameraDashboardCameraCard.activeEditor._draft = null;
+      CameraDashboardCameraCard.activeEditor.render();
+    }
+    this._open = opening;
+    CameraDashboardCameraCard.activeEditor = opening ? this : null;
+    this._error = "";
+    this._draft = null;
+    this.render();
+  }
+
+  async _save() {
+    if (this._saving || !this._hass?.user?.is_admin) return;
+    const fields = this.querySelector("form[data-camera-editor]")?.elements;
+    if (!fields) return;
+    const value = (name) => fields.namedItem(name).value;
+    const patch = {
+      category: value("category"), name: value("name").trim(),
+      order: Number(value("order")) || 0, image_entity: value("image_entity"),
+      camera_view: value("camera_view"), fit_mode: value("fit_mode"),
+      hidden: fields.namedItem("hidden").checked,
+    };
+    this._draft = { ...this._config.option, ...patch };
+    this._saving = true;
+    this.render();
+    try {
+      const url_path = currentDashboardPath();
+      const raw = await this._hass.callWS({ type: "lovelace/config", url_path, force: false });
+      if (raw.strategy?.type !== STRATEGY_TYPE) throw new Error("Dashboard strategy mismatch.");
+      const camera_options = { ...raw.strategy.camera_options,
+        [this._config.camera_key]: { ...raw.strategy.camera_options?.[this._config.camera_key], ...patch } };
+      await this._hass.callWS({ type: "lovelace/config/save", url_path,
+        config: { ...raw, strategy: { ...raw.strategy, camera_options } } });
+      window.location.reload();
+    } catch (error) {
+      this._error = `Save failed: ${error.message || error}`;
+      this._saving = false;
+      this.render();
+    }
+  }
+}
+
 class CameraDashboardManager extends CameraDashboardEditor {
   constructor() {
     super();
@@ -408,6 +575,7 @@ class CameraDashboardManager extends CameraDashboardEditor {
 customElements.define("ll-strategy-dashboard-onvif-camera-dashboard", CameraDashboardStrategy);
 customElements.define("onvif-camera-dashboard-editor", CameraDashboardEditor);
 customElements.define("onvif-camera-dashboard-manager", CameraDashboardManager);
+customElements.define("onvif-camera-dashboard-camera-card", CameraDashboardCameraCard);
 
 window.customStrategies = window.customStrategies || [];
 if (!window.customStrategies.some((strategy) => strategy.type === "onvif-camera-dashboard")) {

@@ -94,6 +94,12 @@ function cameraName(entry, option, hass) {
 export function generateDashboard(config, hass, entries) {
   const cameras = eligibleCameras(entries).filter((entry) => !cameraOption(config, entry).hidden);
   const groups = groupsFor(config, hass, cameras);
+  const categoryChoices = (config.group_by === "custom" ? config.categories || []
+    : config.group_by === "floor" ? Object.values(hass.floors || {}).map((floor) => ({
+      id: `floor:${floor.floor_id}`, title: floor.name,
+    })) : Object.values(hass.areas || {}).map((area) => ({
+      id: `area:${area.area_id}`, title: area.name,
+    }))).map(({ id, title }) => ({ id, title: config.group_options?.[id]?.title || title }));
   if (!groups.length) {
     groups.push({ id: UNASSIGNED, title: "Cameras", icon: "mdi:cctv" });
   }
@@ -112,7 +118,7 @@ export function generateDashboard(config, hass, entries) {
     }];
     for (const entry of groupCameras) {
       const option = cameraOption(config, entry);
-      cards.push({
+      const camera = {
         type: "picture-entity",
         entity: entry.entity_id,
         camera_image: option.image_entity || entry.entity_id,
@@ -122,7 +128,16 @@ export function generateDashboard(config, hass, entries) {
         camera_view: option.camera_view || config.camera_view || "auto",
         fit_mode: option.fit_mode || config.fit_mode || "contain",
         tap_action: { action: option.tap_action || "none" },
-      });
+      };
+      cards.push(hass.user?.is_admin ? {
+        type: "custom:onvif-camera-dashboard-camera-card",
+        camera,
+        camera_key: cameraKey(entry),
+        option,
+        groups: categoryChoices,
+        image_entities: eligibleCameras(entries).map(({ entity_id }) => entity_id),
+        group_by: config.group_by || "area",
+      } : camera);
     }
     if (!groupCameras.length) {
       cards.push({ type: "markdown", content: "No ONVIF cameras in this category yet." });

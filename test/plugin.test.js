@@ -80,3 +80,70 @@ test("manager saves only the current strategy dashboard", async () => {
   assert.equal(save.config.background, "original");
   assert.equal(save.config.strategy.group_by, "floor");
 });
+
+test("a camera tile saves only its own settings", async () => {
+  const Card = elements.get("onvif-camera-dashboard-camera-card");
+  const card = new Card();
+  const requests = [];
+  const original = {
+    strategy: {
+      type: "custom:onvif-camera-dashboard", group_by: "area",
+      camera_options: {
+        "onvif:front": { name: "Front" },
+        "onvif:other": { name: "Other", hidden: true },
+      },
+    },
+    background: "original",
+  };
+  card._config = {
+    camera_key: "onvif:front", option: { name: "Front" },
+    camera: { entity: "camera.front", name: "Front" },
+  };
+  card._hass = { user: { is_admin: true }, callWS: async (request) => {
+    requests.push(request);
+    if (request.type === "lovelace/config") return original;
+    if (request.type === "lovelace/config/save") return;
+    throw new Error(`Unexpected request ${request.type}`);
+  } };
+  const fields = {
+    category: { value: "area:front" }, name: { value: " Front gate " },
+    order: { value: "2" }, image_entity: { value: "camera.front" },
+    camera_view: { value: "auto" }, fit_mode: { value: "contain" },
+    hidden: { checked: false },
+  };
+  card.querySelector = () => ({ elements: { namedItem: (name) => fields[name] } });
+  card.render = () => {};
+  let reloaded = false;
+  window.location.reload = () => { reloaded = true; };
+  await card._save();
+  const saved = requests.find((request) => request.type === "lovelace/config/save").config;
+  assert.equal(saved.background, "original");
+  assert.deepEqual(saved.strategy.camera_options["onvif:other"], { name: "Other", hidden: true });
+  assert.equal(saved.strategy.camera_options["onvif:front"].name, "Front gate");
+  assert.equal(saved.strategy.camera_options["onvif:front"].order, 2);
+  assert.equal(reloaded, true);
+});
+
+test("opening a camera editor closes the previous one", () => {
+  const Card = elements.get("onvif-camera-dashboard-camera-card");
+  const first = new Card();
+  const second = new Card();
+  first.render = () => {};
+  second.render = () => {};
+  const edit = { target: { closest: () => ({ dataset: { action: "edit" } }) } };
+  first._click(edit);
+  assert.equal(first._open, true);
+  second._click(edit);
+  assert.equal(first._open, false);
+  assert.equal(second._open, true);
+  second.disconnectedCallback();
+});
+
+test("camera tile shows admin controls when hass arrives after configuration", () => {
+  const Card = elements.get("onvif-camera-dashboard-camera-card");
+  const card = new Card();
+  let renders = 0;
+  card.render = () => { renders++; };
+  card.hass = { user: { is_admin: true } };
+  assert.equal(renders, 1);
+});
