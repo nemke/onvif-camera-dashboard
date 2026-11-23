@@ -40,6 +40,8 @@ test("only enabled ONVIF camera entities are included, with profiles kept separa
   assert.equal(dashboard.views[0].sections[0].cards[0].type, "custom:onvif-camera-dashboard-camera-card");
   assert.equal(dashboard.views[0].sections[0].cards[0].camera.fit_mode, "contain");
   assert.equal(dashboard.views[0].sections[0].cards[0].camera_key, "onvif:gate-001");
+  assert.deepEqual(dashboard.views[0].sections[0].cards[0].viewer_cameras.map((camera) => camera.key),
+    ["onvif:gate-001", "onvif:gate-101"]);
   const viewer = generateDashboard({ group_by: "area" }, { ...hass, user: { is_admin: false } }, entries);
   assert.equal(viewer.views[0].sections[0].cards[0].type, "custom:onvif-camera-dashboard-camera-card");
   assert.equal(viewer.views[0].sections[0].cards[0].camera.tap_action.action, "none");

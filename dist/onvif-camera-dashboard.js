@@ -36,6 +36,83 @@ function currentDashboardPath() {
   return decodeURIComponent(window.location.pathname.split("/").filter(Boolean)[0] || "lovelace");
 }
 
+export function swipeDirection(start, end) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  return Math.abs(dx) >= 64 && Math.abs(dx) > Math.abs(dy) * 1.4
+    ? (dx < 0 ? 1 : -1) : 0;
+}
+
+export class CameraDashboardTabSwipes {
+  constructor(browser = window, page = globalThis.document) {
+    this.browser = browser;
+    this.page = page;
+    this.pathsByDashboard = new Map();
+    browser.addEventListener?.("touchstart", (event) => this._start(event), { passive: true, capture: true });
+    browser.addEventListener?.("touchend", (event) => this._end(event), { passive: false, capture: true });
+    browser.addEventListener?.("touchcancel", () => { this.gesture = null; }, { capture: true });
+  }
+
+  register(dashboard, paths) {
+    this.pathsByDashboard.set(dashboard, paths);
+  }
+
+  _route() {
+    const parts = (this.browser.location?.pathname || "").split("/").filter(Boolean).map(decodeURIComponent);
+    return { dashboard: parts[0] || "lovelace", path: parts[1] || "" };
+  }
+
+  _blocked(event) {
+    return (event.composedPath?.() || []).some((node) => {
+      const tag = node.tagName?.toLowerCase?.() || "";
+      return tag.includes("dialog") || tag === "ha-tab-group-tab"
+        || ["input", "textarea", "select", "a", "ha-selector"].includes(tag)
+        || (tag === "button" && !node.classList?.contains("camera-view"))
+        || node.isContentEditable || node.getAttribute?.("role") === "dialog";
+    });
+  }
+
+  _start(event) {
+    this.gesture = null;
+    if (event.touches?.length !== 1 || this._blocked(event)
+      || CameraDashboardCameraCard.activeViewer?._viewerOpen
+      || CameraDashboardCameraCard.activeEditor?._open
+      || new URLSearchParams(this.browser.location?.search || "").get("edit") === "1") return;
+    const route = this._route();
+    const paths = this.pathsByDashboard.get(route.dashboard);
+    if (!paths?.length || (route.path && !paths.includes(route.path))) return;
+    const touch = event.touches[0];
+    if (touch.clientX < 24 || touch.clientX > (this.browser.innerWidth || Infinity) - 24) return;
+    this.gesture = { id: touch.identifier, x: touch.clientX, y: touch.clientY, ...route };
+  }
+
+  _end(event) {
+    const start = this.gesture;
+    this.gesture = null;
+    if (!start || event.touches?.length) return;
+    const touch = Array.from(event.changedTouches || []).find((item) => item.identifier === start.id);
+    if (!touch || CameraDashboardCameraCard.activeViewer?._viewerOpen) return;
+    const route = this._route();
+    if (route.dashboard !== start.dashboard || route.path !== start.path) return;
+    const paths = this.pathsByDashboard.get(route.dashboard) || [];
+    const current = route.path ? paths.indexOf(route.path) : 0;
+    const next = current + swipeDirection(start, { x: touch.clientX, y: touch.clientY });
+    if (current < 0 || next < 0 || next >= paths.length || next === current) return;
+    event.preventDefault?.();
+    const link = this.page.createElement("a");
+    link.href = `/${encodeURIComponent(route.dashboard)}/${encodeURIComponent(paths[next])}`;
+    this.page.body.append(link);
+    link.click();
+    link.remove();
+  }
+}
+
+let tabSwipes;
+function registerTabSwipes(paths) {
+  tabSwipes ||= new CameraDashboardTabSwipes();
+  tabSwipes.register(currentDashboardPath(), paths);
+}
+
 let iconSelectorLoad;
 function loadIconSelector() {
   if (customElements.get("ha-selector")) return Promise.resolve();
@@ -69,8 +146,12 @@ class CameraDashboardStrategy extends HTMLElement {
   static async generate(config, hass) {
     try {
       const entries = await hass.callWS({ type: "config/entity_registry/list" });
-      return generateDashboard(config, hass, entries);
+      const dashboard = generateDashboard(config, hass, entries);
+      registerTabSwipes(dashboard.views.filter((view) =>
+        view.path !== "manage" && view.path !== "hidden-cameras").map((view) => view.path));
+      return dashboard;
     } catch (error) {
+      registerTabSwipes([]);
       return {
         title: "ONVIF Cameras",
         views: [{
@@ -359,6 +440,7 @@ class CameraDashboardCameraCard extends HTMLElement {
     this._open = false;
     this._viewerOpen = false;
     this._viewerGeneration = 0;
+    this._viewerIndex = 0;
     this._saving = false;
     this.addEventListener("click", (event) => this._click(event));
   }
@@ -417,6 +499,18 @@ class CameraDashboardCameraCard extends HTMLElement {
     await this._picturePromise;
   }
 
+  _viewerCameras() {
+    return this._config.viewer_cameras?.length ? this._config.viewer_cameras : [{
+      key: this._config.camera_key,
+      name: this._config.camera.name,
+      image_entity: this._config.camera.camera_image || this._config.camera.entity,
+    }];
+  }
+
+  _currentViewerCamera() {
+    return this._viewerCameras()[this._viewerIndex];
+  }
+
   async _mountViewer() {
     if (!this._viewerOpen || !this._config || this._config.option?.hidden) return;
     if (this._viewerCard) {
@@ -429,11 +523,13 @@ class CameraDashboardCameraCard extends HTMLElement {
       try {
         const helpers = await window.loadCardHelpers();
         if (!this._viewerOpen || generation !== this._viewerGeneration) return;
-        const source = this._config.camera.camera_image || this._config.camera.entity;
+        const selected = this._currentViewerCamera();
+        const source = selected.image_entity;
         const card = helpers.createCardElement({
           ...this._config.camera,
           entity: source,
           camera_image: source,
+          name: selected.name,
           camera_view: "live",
           fit_mode: "contain",
           aspect_ratio: "16x9",
@@ -454,6 +550,53 @@ class CameraDashboardCameraCard extends HTMLElement {
       }
     })();
     await this._viewerPromise;
+  }
+
+  _updateViewerControls() {
+    const cameras = this._viewerCameras();
+    const title = this.querySelector("#camera-viewer-title");
+    if (title) title.textContent = this._currentViewerCamera().name;
+    const position = this.querySelector(".viewer-position");
+    if (position) position.textContent = `${this._viewerIndex + 1} / ${cameras.length}`;
+    const previous = this.querySelector("button[data-action=previous-camera]");
+    if (previous) previous.disabled = this._viewerIndex === 0;
+    const next = this.querySelector("button[data-action=next-camera]");
+    if (next) next.disabled = this._viewerIndex === cameras.length - 1;
+  }
+
+  _selectViewer(index) {
+    if (!this._viewerOpen || index < 0 || index >= this._viewerCameras().length
+      || index === this._viewerIndex) return false;
+    this._viewerGeneration++;
+    this._viewerCard?.remove?.();
+    this._viewerCard = null;
+    this._viewerPromise = null;
+    this._viewerIndex = index;
+    const error = this.querySelector(".viewer-error");
+    if (error) error.textContent = "";
+    this._updateViewerControls();
+    this._mountViewer();
+    return true;
+  }
+
+  _startViewerSwipe(event) {
+    this._viewerGesture = null;
+    if (event.touches?.length !== 1 || (event.composedPath?.() || []).some((node) =>
+      node.tagName?.toLowerCase?.() === "button")) return;
+    const touch = event.touches[0];
+    this._viewerGesture = { id: touch.identifier, x: touch.clientX, y: touch.clientY };
+  }
+
+  _endViewerSwipe(event) {
+    const start = this._viewerGesture;
+    this._viewerGesture = null;
+    if (!start || event.touches?.length) return;
+    const touch = Array.from(event.changedTouches || []).find((item) => item.identifier === start.id);
+    if (!touch) return;
+    const direction = swipeDirection(start, { x: touch.clientX, y: touch.clientY });
+    if (!direction) return;
+    event.preventDefault?.();
+    this._selectViewer(this._viewerIndex + direction);
   }
 
   render() {
@@ -484,13 +627,18 @@ class CameraDashboardCameraCard extends HTMLElement {
       onvif-camera-dashboard-camera-card .camera-viewer { box-sizing:border-box;
         width:calc(100vw - 24px); height:calc(100vh - 24px); height:calc(100dvh - 24px);
         max-width:none; max-height:none; margin:auto; padding:16px; border:1px solid var(--divider-color,#555);
-        border-radius:12px; color:#fff; background:#111; }
+        border-radius:12px; color:#fff; background:#111; touch-action:pan-y; }
       onvif-camera-dashboard-camera-card .camera-viewer[open] { display:flex; flex-direction:column; }
       onvif-camera-dashboard-camera-card .camera-viewer::backdrop { background:rgba(0,0,0,.85); }
       onvif-camera-dashboard-camera-card .viewer-header { display:flex; align-items:center; justify-content:space-between;
         gap:16px; flex:none; min-height:48px; padding:0 0 12px; }
       onvif-camera-dashboard-camera-card .viewer-header h3 { margin:0; min-width:0; overflow:hidden;
         white-space:nowrap; text-overflow:ellipsis; font-size:1.1rem; }
+      onvif-camera-dashboard-camera-card .viewer-navigation { display:flex; align-items:center; gap:4px; flex:none; }
+      onvif-camera-dashboard-camera-card .viewer-navigation button { width:44px; height:44px; padding:0;
+        border:0; border-radius:50%; color:#fff; background:#333; font-size:28px; cursor:pointer; }
+      onvif-camera-dashboard-camera-card .viewer-navigation button:disabled { opacity:.35; cursor:default; }
+      onvif-camera-dashboard-camera-card .viewer-position { min-width:40px; text-align:center; font-size:.85rem; }
       onvif-camera-dashboard-camera-card .viewer-close { flex:none; width:44px; height:44px;
         border:0; border-radius:50%; color:#fff; background:#333; font-size:24px; line-height:1; cursor:pointer; }
       onvif-camera-dashboard-camera-card .viewer-close:hover,
@@ -541,8 +689,12 @@ class CameraDashboardCameraCard extends HTMLElement {
         <ha-icon icon="mdi:pencil" aria-hidden="true"></ha-icon></button>` : ""}
     </div>
     ${this._viewerOpen && !this._config.option?.hidden ? `<dialog class="camera-viewer" aria-labelledby="camera-viewer-title">
-      <header class="viewer-header"><h3 id="camera-viewer-title">${esc(this._config.camera.name)}</h3>
-        <button class="viewer-close" type="button" data-action="close-viewer" aria-label="Close camera viewer">×</button></header>
+      <header class="viewer-header"><h3 id="camera-viewer-title" tabindex="-1" aria-live="polite">${esc(this._currentViewerCamera().name)}</h3>
+        <div class="viewer-navigation">${this._viewerCameras().length > 1 ? `
+          <button type="button" data-action="previous-camera" aria-label="Previous camera" ${this._viewerIndex === 0 ? "disabled" : ""}>‹</button>
+          <span class="viewer-position">${this._viewerIndex + 1} / ${this._viewerCameras().length}</span>
+          <button type="button" data-action="next-camera" aria-label="Next camera" ${this._viewerIndex === this._viewerCameras().length - 1 ? "disabled" : ""}>›</button>` : ""}
+          <button class="viewer-close" type="button" data-action="close-viewer" aria-label="Close camera viewer">×</button></div></header>
       <div class="viewer-stage"><p class="viewer-error" role="alert"></p></div>
     </dialog>` : ""}
     ${this._open && this._hass?.user?.is_admin ? `<dialog class="camera-dialog" aria-labelledby="camera-dialog-title">
@@ -588,13 +740,19 @@ class CameraDashboardCameraCard extends HTMLElement {
       event.preventDefault();
       this._closeViewer();
     });
+    viewer?.addEventListener("touchstart", (event) => this._startViewerSwipe(event), { passive: true });
+    viewer?.addEventListener("touchend", (event) => this._endViewerSwipe(event), { passive: false });
+    viewer?.addEventListener("touchcancel", () => { this._viewerGesture = null; });
     viewer?.showModal?.();
+    if (viewer) this.querySelector("#camera-viewer-title")?.focus?.();
     if (viewer) this._mountViewer();
     if (!this._config.option?.hidden) this._mountPicture();
   }
 
   _click(event) {
     const action = event.target?.closest?.("button[data-action]")?.dataset.action;
+    if (action === "previous-camera") { this._selectViewer(this._viewerIndex - 1); return; }
+    if (action === "next-camera") { this._selectViewer(this._viewerIndex + 1); return; }
     if (action === "close-viewer") { this._closeViewer(); return; }
     if (action === "view") {
       if (this._config?.option?.hidden) return;
@@ -602,6 +760,8 @@ class CameraDashboardCameraCard extends HTMLElement {
       if (CameraDashboardCameraCard.activeViewer && CameraDashboardCameraCard.activeViewer !== this) {
         CameraDashboardCameraCard.activeViewer._closeViewer(false);
       }
+      this._viewerIndex = Math.max(0, this._viewerCameras().findIndex((camera) =>
+        camera.key === this._config.camera_key));
       this._viewerOpen = true;
       this._viewerGeneration++;
       CameraDashboardCameraCard.activeViewer = this;
@@ -631,6 +791,7 @@ class CameraDashboardCameraCard extends HTMLElement {
     this._viewerCard?.remove?.();
     this._viewerCard = null;
     this._viewerPromise = null;
+    this._viewerGesture = null;
     if (CameraDashboardCameraCard.activeViewer === this) CameraDashboardCameraCard.activeViewer = null;
     if (restoreFocus) this.querySelector(".camera-view")?.focus?.();
   }

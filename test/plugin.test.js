@@ -22,7 +22,7 @@ globalThis.window = {
   loadCardHelpers: async () => ({ createCardElement: () => ({ localName: "hui-heading-card" }) }),
 };
 
-await import("../src/onvif-camera-dashboard.js");
+const { CameraDashboardTabSwipes, swipeDirection } = await import("../src/onvif-camera-dashboard.js");
 
 const entries = [{
   entity_id: "camera.front", unique_id: "front", platform: "onvif", device_id: "device-front",
@@ -309,6 +309,97 @@ test("camera viewer loads the selected stream only while open, including for vie
     onCancel({ preventDefault() { prevented = true; } });
     assert.equal(prevented, true);
     assert.equal(card._viewerOpen, false);
+  } finally {
+    window.loadCardHelpers = originalLoad;
+  }
+});
+
+test("horizontal swipes change category tabs without affecting dialogs or vertical scrolling", () => {
+  assert.equal(swipeDirection({ x: 250, y: 300 }, { x: 100, y: 310 }), 1);
+  assert.equal(swipeDirection({ x: 250, y: 300 }, { x: 100, y: 480 }), 0);
+  const listeners = {};
+  const links = [];
+  const browser = { location: { pathname: "/camera-dashboard/camera-front", search: "" },
+    innerWidth: 390, addEventListener(type, handler) { listeners[type] = handler; } };
+  const page = { body: { append() {} }, createElement() { return {
+    set href(value) { this.url = value; }, click() { links.push(this.url); }, remove() {},
+  }; } };
+  const swipes = new CameraDashboardTabSwipes(browser, page);
+  swipes.register("camera-dashboard", ["camera-front", "camera-back", "camera-house"]);
+  const start = (x, y, path = []) => listeners.touchstart({
+    touches: [{ identifier: 4, clientX: x, clientY: y }], composedPath: () => path,
+  });
+  const end = (x, y) => listeners.touchend({
+    touches: [], changedTouches: [{ identifier: 4, clientX: x, clientY: y }],
+    preventDefault() {},
+  });
+  start(250, 300); end(100, 310);
+  assert.deepEqual(links, ["/camera-dashboard/camera-back"]);
+  browser.location.pathname = "/camera-dashboard/camera-back";
+  start(100, 300); end(250, 310);
+  assert.deepEqual(links, ["/camera-dashboard/camera-back", "/camera-dashboard/camera-front"]);
+  browser.location.pathname = "/camera-dashboard/camera-front";
+  start(250, 300); end(100, 480);
+  assert.equal(links.length, 2);
+  start(250, 300, [{ tagName: "DIALOG" }]); end(100, 310);
+  assert.equal(links.length, 2);
+  start(10, 300); end(100, 310);
+  assert.equal(links.length, 2);
+  browser.location.pathname = "/camera-dashboard/manage";
+  start(250, 300); end(100, 310);
+  assert.equal(links.length, 2);
+});
+
+test("viewer swipe stays within its camera category and updates the live source", async () => {
+  const Card = elements.get("onvif-camera-dashboard-camera-card");
+  const card = new Card();
+  const created = [];
+  const originalLoad = window.loadCardHelpers;
+  window.loadCardHelpers = async () => ({ createCardElement(config) {
+    created.push(config);
+    return { remove() {} };
+  } });
+  const title = { textContent: "" };
+  const position = { textContent: "" };
+  const previous = { disabled: false };
+  const next = { disabled: false };
+  const dialog = { addEventListener() {}, showModal() {}, close() {} };
+  card.querySelector = (selector) => ({
+    ".camera-picture": { replaceChildren() {} },
+    ".viewer-stage": { replaceChildren() {} },
+    "dialog.camera-viewer": dialog,
+    "#camera-viewer-title": title,
+    ".viewer-position": position,
+    "button[data-action=previous-camera]": previous,
+    "button[data-action=next-camera]": next,
+  })[selector] || null;
+  try {
+    card.setConfig({ camera_key: "onvif:gate", camera: {
+      entity: "camera.gate", camera_image: "camera.gate", name: "Gate", camera_view: "auto",
+    }, option: {}, image_entities: ["camera.gate"], groups: [], group_by: "area",
+    viewer_cameras: [
+      { key: "onvif:gate", name: "Gate", image_entity: "camera.gate" },
+      { key: "onvif:wall", name: "Wall", image_entity: "camera.wall" },
+    ] });
+    card.hass = { user: { is_admin: false } };
+    await card._picturePromise;
+    card._click({ target: { closest: () => ({ dataset: { action: "view" } }) } });
+    await card._mountViewer();
+    assert.equal(created.at(-1).entity, "camera.gate");
+    card._startViewerSwipe({ touches: [{ identifier: 7, clientX: 250, clientY: 300 }], composedPath: () => [] });
+    card._endViewerSwipe({ touches: [], changedTouches: [{ identifier: 7, clientX: 100, clientY: 310 }], preventDefault() {} });
+    await card._mountViewer();
+    assert.equal(card._viewerIndex, 1);
+    assert.equal(created.at(-1).entity, "camera.wall");
+    assert.equal(title.textContent, "Wall");
+    assert.equal(position.textContent, "2 / 2");
+    assert.equal(next.disabled, true);
+    assert.equal(card._selectViewer(2), false);
+    card._click({ target: { closest: () => ({ dataset: { action: "previous-camera" } }) } });
+    await card._mountViewer();
+    assert.equal(card._viewerIndex, 0);
+    assert.equal(created.at(-1).entity, "camera.gate");
+    card._closeViewer(false);
   } finally {
     window.loadCardHelpers = originalLoad;
   }

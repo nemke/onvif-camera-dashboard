@@ -108,7 +108,7 @@ export function generateDashboard(config, hass, entries) {
     groups.push({ id: UNASSIGNED, title: "Cameras", icon: "mdi:cctv" });
   }
 
-  const cameraCard = (entry) => {
+  const cameraCard = (entry, viewerCameras = []) => {
     const option = cameraOption(config, entry);
     const camera = {
       type: "picture-entity",
@@ -129,6 +129,7 @@ export function generateDashboard(config, hass, entries) {
       groups: categoryChoices,
       image_entities: imageEntities,
       group_by: config.group_by || "area",
+      viewer_cameras: viewerCameras,
     };
   };
 
@@ -141,8 +142,13 @@ export function generateDashboard(config, hass, entries) {
         return (Number(left.order) || 0) - (Number(right.order) || 0)
           || cameraName(a, left, hass).localeCompare(cameraName(b, right, hass));
       });
+    const viewerCameras = groupCameras.map((entry) => ({
+      key: cameraKey(entry),
+      name: cameraName(entry, cameraOption(config, entry), hass),
+      image_entity: cameraOption(config, entry).image_entity || entry.entity_id,
+    }));
     const sections = groupCameras.length
-      ? groupCameras.map((entry) => ({ type: "grid", cards: [cameraCard(entry)] }))
+      ? groupCameras.map((entry) => ({ type: "grid", cards: [cameraCard(entry, viewerCameras)] }))
       : [{ type: "grid", cards: [{
         type: "markdown", content: "No ONVIF cameras in this category yet.",
       }] }];
