@@ -187,6 +187,8 @@ test("opening a camera editor closes the previous one", () => {
   const Card = elements.get("onvif-camera-dashboard-camera-card");
   const first = new Card();
   const second = new Card();
+  first._hass = { user: { is_admin: true } };
+  second._hass = { user: { is_admin: true } };
   first.render = () => {};
   second.render = () => {};
   const edit = { target: { closest: () => ({ dataset: { action: "edit" } }) } };
@@ -239,6 +241,7 @@ test("a hidden camera renders an admin placeholder with an edit button", () => {
   assert.match(card.innerHTML, /Edit camera/);
   assert.doesNotMatch(card.innerHTML, /camera-toolbar/);
   assert.doesNotMatch(card.innerHTML, /class="camera-picture"/);
+  assert.doesNotMatch(card.innerHTML, /class="camera-view"/);
 });
 
 test("a visible camera has a compact edit control over its picture", () => {
@@ -255,4 +258,58 @@ test("a visible camera has a compact edit control over its picture", () => {
   assert.match(card.innerHTML, /width:44px; height:44px/);
   assert.deepEqual(card.getGridOptions(), { columns: 12, rows: "auto" });
   assert.doesNotMatch(card.innerHTML, /camera-toolbar/);
+});
+
+test("camera viewer loads the selected stream only while open, including for viewers", async () => {
+  const Card = elements.get("onvif-camera-dashboard-camera-card");
+  const card = new Card();
+  const created = [];
+  const originalLoad = window.loadCardHelpers;
+  let removed = false;
+  let focused = false;
+  let onCancel;
+  const stage = { replaceChildren() {} };
+  const picture = { replaceChildren() {} };
+  const dialog = { addEventListener(type, handler) { if (type === "cancel") onCancel = handler; },
+    showModal() {}, close() {} };
+  card.querySelector = (selector) => ({
+    ".camera-picture": picture,
+    ".viewer-stage": stage,
+    "dialog.camera-viewer": dialog,
+    ".camera-view": { focus() { focused = true; } },
+  })[selector] || null;
+  window.loadCardHelpers = async () => ({ createCardElement(config) {
+    created.push(config);
+    return { remove() { removed = true; } };
+  } });
+  try {
+    card.setConfig({ camera_key: "onvif:front", camera: {
+      entity: "camera.front_profile001", camera_image: "camera.front_profile000",
+      name: "Front camera", camera_view: "auto", fit_mode: "contain",
+    }, option: {}, image_entities: ["camera.front_profile000"], groups: [], group_by: "area" });
+    card.hass = { user: { is_admin: false } };
+    await card._picturePromise;
+    assert.equal(created.length, 1);
+    assert.doesNotMatch(card.innerHTML, /class="camera-edit"/);
+    assert.match(card.innerHTML, /class="camera-view"/);
+    card._click({ target: { closest: () => ({ dataset: { action: "view" } }) } });
+    await card._mountViewer();
+    assert.equal(created.length, 2);
+    assert.equal(created[1].camera_view, "live");
+    assert.equal(created[1].entity, "camera.front_profile000");
+    assert.equal(created[1].fit_mode, "contain");
+    assert.match(card.innerHTML, /class="camera-viewer"/);
+    card._click({ target: { closest: () => ({ dataset: { action: "close-viewer" } }) } });
+    assert.equal(removed, true);
+    assert.equal(focused, true);
+    assert.equal(card._viewerOpen, false);
+    card._click({ target: { closest: () => ({ dataset: { action: "view" } }) } });
+    await card._mountViewer();
+    let prevented = false;
+    onCancel({ preventDefault() { prevented = true; } });
+    assert.equal(prevented, true);
+    assert.equal(card._viewerOpen, false);
+  } finally {
+    window.loadCardHelpers = originalLoad;
+  }
 });

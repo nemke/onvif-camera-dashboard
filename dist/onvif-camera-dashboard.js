@@ -357,12 +357,15 @@ class CameraDashboardCameraCard extends HTMLElement {
   constructor() {
     super();
     this._open = false;
+    this._viewerOpen = false;
+    this._viewerGeneration = 0;
     this._saving = false;
     this.addEventListener("click", (event) => this._click(event));
   }
 
   setConfig(config) {
     if (!config?.camera?.entity || !config.camera_key) throw new Error("Camera card configuration is incomplete.");
+    this._closeViewer(false);
     this._config = config;
     this._picture = null;
     this._picturePromise = null;
@@ -376,6 +379,7 @@ class CameraDashboardCameraCard extends HTMLElement {
     const wasAdmin = this._hass?.user?.is_admin;
     this._hass = hass;
     if (this._picture) this._picture.hass = hass;
+    if (this._viewerCard) this._viewerCard.hass = hass;
     if (wasAdmin !== hass.user?.is_admin) this.render();
   }
 
@@ -385,6 +389,7 @@ class CameraDashboardCameraCard extends HTMLElement {
 
   disconnectedCallback() {
     if (CameraDashboardCameraCard.activeEditor === this) CameraDashboardCameraCard.activeEditor = null;
+    this._closeViewer(false);
   }
 
   getCardSize() { return 3; }
@@ -412,6 +417,45 @@ class CameraDashboardCameraCard extends HTMLElement {
     await this._picturePromise;
   }
 
+  async _mountViewer() {
+    if (!this._viewerOpen || !this._config || this._config.option?.hidden) return;
+    if (this._viewerCard) {
+      this.querySelector(".viewer-stage")?.replaceChildren(this._viewerCard);
+      return;
+    }
+    if (this._viewerPromise) return this._viewerPromise;
+    const generation = this._viewerGeneration;
+    this._viewerPromise = (async () => {
+      try {
+        const helpers = await window.loadCardHelpers();
+        if (!this._viewerOpen || generation !== this._viewerGeneration) return;
+        const source = this._config.camera.camera_image || this._config.camera.entity;
+        const card = helpers.createCardElement({
+          ...this._config.camera,
+          entity: source,
+          camera_image: source,
+          camera_view: "live",
+          fit_mode: "contain",
+          aspect_ratio: "16x9",
+          show_name: false,
+          show_state: false,
+          tap_action: { action: "none" },
+        });
+        if (this._hass) card.hass = this._hass;
+        if (!this._viewerOpen || generation !== this._viewerGeneration) return;
+        this._viewerCard = card;
+        this.querySelector(".viewer-stage")?.replaceChildren(card);
+      } catch (error) {
+        if (!this._viewerOpen || generation !== this._viewerGeneration) return;
+        const message = this.querySelector(".viewer-error");
+        if (message) message.textContent = `Could not load camera viewer: ${error.message || error}`;
+      } finally {
+        if (generation === this._viewerGeneration) this._viewerPromise = null;
+      }
+    })();
+    await this._viewerPromise;
+  }
+
   render() {
     if (!this.isConnected || !this._config) return;
     const option = this._draft || this._config.option || {};
@@ -420,19 +464,45 @@ class CameraDashboardCameraCard extends HTMLElement {
     this.innerHTML = `<style>
       onvif-camera-dashboard-camera-card .camera-shell { position:relative; }
       onvif-camera-dashboard-camera-card .camera-picture { display:block; }
+      onvif-camera-dashboard-camera-card .camera-view { position:absolute; inset:0; z-index:1;
+        width:100%; padding:0; border:0; border-radius:var(--ha-card-border-radius,12px);
+        background:transparent; cursor:zoom-in; }
+      onvif-camera-dashboard-camera-card .camera-view:focus-visible { outline:3px solid var(--primary-color,#03a9f4); outline-offset:-3px; }
       onvif-camera-dashboard-camera-card .hidden-camera { display:flex; flex-direction:column;
         justify-content:center; min-height:80px; padding:12px 16px 12px 58px; box-sizing:border-box;
         color:var(--secondary-text-color,#666);
         background:var(--ha-card-background,var(--card-background-color,#fff));
         border-radius:var(--ha-card-border-radius,12px); }
       onvif-camera-dashboard-camera-card .hidden-camera strong { color:var(--primary-text-color); }
-      onvif-camera-dashboard-camera-card .camera-edit { position:absolute; bottom:8px; left:8px; z-index:1;
+      onvif-camera-dashboard-camera-card .camera-edit { position:absolute; bottom:8px; left:8px; z-index:2;
         display:flex; align-items:center; justify-content:center; width:44px; height:44px; padding:0;
         border:0; border-radius:50%; background:rgba(0,0,0,.62); color:#fff; opacity:.85;
         cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,.25); }
       onvif-camera-dashboard-camera-card .camera-edit:hover,
       onvif-camera-dashboard-camera-card .camera-edit:focus-visible { opacity:1; background:rgba(0,0,0,.85); }
       onvif-camera-dashboard-camera-card .camera-edit ha-icon { --mdc-icon-size:20px; }
+      onvif-camera-dashboard-camera-card .camera-viewer { box-sizing:border-box;
+        width:calc(100vw - 24px); height:calc(100vh - 24px); height:calc(100dvh - 24px);
+        max-width:none; max-height:none; margin:auto; padding:16px; border:1px solid var(--divider-color,#555);
+        border-radius:12px; color:#fff; background:#111; }
+      onvif-camera-dashboard-camera-card .camera-viewer[open] { display:flex; flex-direction:column; }
+      onvif-camera-dashboard-camera-card .camera-viewer::backdrop { background:rgba(0,0,0,.85); }
+      onvif-camera-dashboard-camera-card .viewer-header { display:flex; align-items:center; justify-content:space-between;
+        gap:16px; flex:none; min-height:48px; padding:0 0 12px; }
+      onvif-camera-dashboard-camera-card .viewer-header h3 { margin:0; min-width:0; overflow:hidden;
+        white-space:nowrap; text-overflow:ellipsis; font-size:1.1rem; }
+      onvif-camera-dashboard-camera-card .viewer-close { flex:none; width:44px; height:44px;
+        border:0; border-radius:50%; color:#fff; background:#333; font-size:24px; line-height:1; cursor:pointer; }
+      onvif-camera-dashboard-camera-card .viewer-close:hover,
+      onvif-camera-dashboard-camera-card .viewer-close:focus-visible { background:#555; }
+      onvif-camera-dashboard-camera-card .viewer-stage { flex:1; min-height:0; display:grid; place-items:center; }
+      onvif-camera-dashboard-camera-card .viewer-stage > * { width:100%; max-width:calc(177.78dvh - 213px); }
+      onvif-camera-dashboard-camera-card .viewer-error { color:#fff; text-align:center; }
+      onvif-camera-dashboard-camera-card .viewer-error:empty { display:none; }
+      @media (max-width:600px) {
+        onvif-camera-dashboard-camera-card .camera-viewer { width:100vw; height:100vh; height:100dvh;
+          margin:0; border:0; border-radius:0; }
+      }
       onvif-camera-dashboard-camera-card .camera-dialog button { font:inherit; cursor:pointer; border:0;
         border-radius:8px; min-height:44px; padding:8px 12px;
         color:var(--primary-text-color); background:var(--secondary-background-color,#eee); }
@@ -462,13 +532,19 @@ class CameraDashboardCameraCard extends HTMLElement {
     <div class="camera-shell">
       ${this._config.option?.hidden
         ? `<div class="hidden-camera"><strong>${esc(this._config.camera.name)}</strong><span>Hidden from dashboard</span></div>`
-        : `<div class="camera-picture"></div>`}
+        : `<div class="camera-picture"></div><button class="camera-view" type="button" data-action="view"
+            aria-haspopup="dialog" aria-label="View ${esc(this._config.camera.name)} full screen" title="Open camera viewer"></button>`}
       ${this._pictureError ? `<div class="camera-error" role="alert">${esc(this._pictureError)}</div>` : ""}
       ${this._hass?.user?.is_admin ? `<button class="camera-edit" type="button" data-action="edit"
         aria-haspopup="dialog" aria-label="Edit ${esc(this._config.camera.name)}"
         title="Edit camera" ${this._saving ? "disabled" : ""}>
         <ha-icon icon="mdi:pencil" aria-hidden="true"></ha-icon></button>` : ""}
     </div>
+    ${this._viewerOpen && !this._config.option?.hidden ? `<dialog class="camera-viewer" aria-labelledby="camera-viewer-title">
+      <header class="viewer-header"><h3 id="camera-viewer-title">${esc(this._config.camera.name)}</h3>
+        <button class="viewer-close" type="button" data-action="close-viewer" aria-label="Close camera viewer">×</button></header>
+      <div class="viewer-stage"><p class="viewer-error" role="alert"></p></div>
+    </dialog>` : ""}
     ${this._open && this._hass?.user?.is_admin ? `<dialog class="camera-dialog" aria-labelledby="camera-dialog-title">
       <header><h3 id="camera-dialog-title">Edit ${esc(this._config.camera.name)}</h3>
         <button type="button" class="close" data-action="cancel" aria-label="Close camera editor">×</button></header>
@@ -507,14 +583,36 @@ class CameraDashboardCameraCard extends HTMLElement {
       this._closeEditor(false);
     });
     dialog?.showModal?.();
+    const viewer = this.querySelector("dialog.camera-viewer");
+    viewer?.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      this._closeViewer();
+    });
+    viewer?.showModal?.();
+    if (viewer) this._mountViewer();
     if (!this._config.option?.hidden) this._mountPicture();
   }
 
   _click(event) {
     const action = event.target?.closest?.("button[data-action]")?.dataset.action;
+    if (action === "close-viewer") { this._closeViewer(); return; }
+    if (action === "view") {
+      if (this._config?.option?.hidden) return;
+      if (this._open) this._closeEditor(false);
+      if (CameraDashboardCameraCard.activeViewer && CameraDashboardCameraCard.activeViewer !== this) {
+        CameraDashboardCameraCard.activeViewer._closeViewer(false);
+      }
+      this._viewerOpen = true;
+      this._viewerGeneration++;
+      CameraDashboardCameraCard.activeViewer = this;
+      this.render();
+      return;
+    }
     if (action !== "edit" && action !== "cancel") return;
+    if (action === "edit" && !this._hass?.user?.is_admin) return;
     if (this._saving) return;
     if (action === "cancel") { this._closeEditor(); return; }
+    if (this._viewerOpen) this._closeViewer(false);
     if (CameraDashboardCameraCard.activeEditor && CameraDashboardCameraCard.activeEditor !== this) {
       CameraDashboardCameraCard.activeEditor._closeEditor();
     }
@@ -523,6 +621,18 @@ class CameraDashboardCameraCard extends HTMLElement {
     this._error = "";
     this._draft = null;
     this.render();
+  }
+
+  _closeViewer(restoreFocus = true) {
+    this._viewerGeneration++;
+    this._viewerOpen = false;
+    this.querySelector("dialog.camera-viewer")?.close?.();
+    this.querySelector(".viewer-stage")?.replaceChildren?.();
+    this._viewerCard?.remove?.();
+    this._viewerCard = null;
+    this._viewerPromise = null;
+    if (CameraDashboardCameraCard.activeViewer === this) CameraDashboardCameraCard.activeViewer = null;
+    if (restoreFocus) this.querySelector(".camera-view")?.focus?.();
   }
 
   _closeEditor(restoreFocus = true) {

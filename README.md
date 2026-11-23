@@ -11,6 +11,7 @@ A Home Assistant dashboard plugin that adds every **configured, enabled ONVIF ca
 ## Features
 
 - Responsive camera columns using native Sections views and `picture-entity` camera cards. Each tab defaults to two columns on wide screens and one on narrow screens.
+- Tap a visible feed to open a nearly full-screen live viewer on desktop or a full-screen viewer on mobile. The viewer loads the selected camera stream on opening and removes its live card on closing. Use the close button or Escape to return to the same tab.
 - Area, floor, or custom category tabs with editable names and a searchable Home Assistant icon picker.
 - Camera order, display name, image entity, and visibility controls.
 - An admin-only 44 px edit button on each feed. Camera settings open in a dialog, with common choices first and advanced choices tucked away. Saving refreshes the dashboard without reloading the browser page.
@@ -38,7 +39,7 @@ strategy:
   group_by: area
 ```
 
-Open its **Settings** tab to set up the tabs and their maximum **Camera columns**. Home Assistant reduces the number of columns on narrower screens. Use the pencil icon on a feed to change that camera's name, tab, image entity, order, view, or visibility. Hidden cameras appear only in the administrator **Hidden** tab, where you can edit them to show them again. To migrate a dashboard like the one in the project brief, expand **Import tabs from an existing dashboard**, choose the source, select **Import into draft**, review the tabs, then select **Save dashboard**. Import reads the source dashboard and updates only the new dashboard when saved.
+Open its **Settings** tab to set up the tabs and their maximum **Camera columns**. Home Assistant reduces the number of columns on narrower screens. Tap a feed to see it larger; use the pencil icon to change that camera's name, tab, image entity, order, view, or visibility. Hidden cameras appear only in the administrator **Hidden** tab, where you can edit them to show them again. To migrate a dashboard like the one in the project brief, expand **Import tabs from an existing dashboard**, choose the source, select **Import into draft**, review the tabs, then select **Save dashboard**. Import reads the source dashboard and updates only the new dashboard when saved.
 
 ## Manual installation
 
@@ -46,7 +47,7 @@ If you cannot use Marketplace, build and install the plugin directly:
 
 1. Run `npm run build` in this repository. No dependencies need installing.
 2. Copy **both** files from `dist/` into `/config/www/community/onvif-camera-dashboard/` on Home Assistant.
-3. Add `/local/community/onvif-camera-dashboard/onvif-camera-dashboard.js?v=0.1.7` as a JavaScript module under **Settings → Dashboards → Resources**.
+3. Add `/local/community/onvif-camera-dashboard/onvif-camera-dashboard.js?v=0.1.8` as a JavaScript module under **Settings → Dashboards → Resources**.
 4. Reload Home Assistant in the browser. Change the URL version when installing a newer build.
 
 Marketplace installs register the resource automatically; keep only one resource entry for this plugin.

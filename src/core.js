@@ -119,9 +119,9 @@ export function generateDashboard(config, hass, entries) {
       show_state: false,
       camera_view: option.camera_view || config.camera_view || "auto",
       fit_mode: option.fit_mode || config.fit_mode || "contain",
-      tap_action: { action: option.tap_action || "none" },
+      tap_action: { action: "none" },
     };
-    return hass.user?.is_admin ? {
+    return {
       type: "custom:onvif-camera-dashboard-camera-card",
       camera,
       camera_key: cameraKey(entry),
@@ -129,7 +129,7 @@ export function generateDashboard(config, hass, entries) {
       groups: categoryChoices,
       image_entities: imageEntities,
       group_by: config.group_by || "area",
-    } : camera;
+    };
   };
 
   const views = groups.map((group) => {
