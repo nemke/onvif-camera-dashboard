@@ -71,6 +71,8 @@ test("hidden cameras move to an admin-only recovery tab", () => {
   const admin = generateDashboard(config, hass, entries.slice(0, 2));
   const viewer = generateDashboard(config, { ...hass, user: { is_admin: false } }, entries.slice(0, 2));
   assert.deepEqual(admin.views.map((view) => view.title), ["Front Yard", "Hidden", "Settings"]);
+  assert.equal(admin.views[1].show_icon_and_title, true);
+  assert.equal(admin.views[2].show_icon_and_title, true);
   assert.deepEqual(viewer.views.map((view) => view.title), ["Front Yard"]);
   assert.equal(admin.views[0].sections.length, 1);
   assert.equal(admin.views[0].sections[0].cards[0].camera.entity, entries[1].entity_id);

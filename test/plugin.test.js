@@ -125,7 +125,7 @@ test("a camera tile saves only its own settings", async () => {
     strategy: {
       type: "custom:onvif-camera-dashboard", group_by: "area",
       camera_options: {
-        "onvif:front": { name: "Front" },
+        "onvif:front": { name: "Front", order: 2 },
         "onvif:other": { name: "Other", hidden: true },
       },
     },
@@ -143,7 +143,7 @@ test("a camera tile saves only its own settings", async () => {
   } };
   const fields = {
     category: { value: "area:front" }, name: { value: " Front gate " },
-    order: { value: "2" }, image_entity: { value: "camera.front" },
+    image_entity: { value: "camera.front" },
     camera_view: { value: "auto" }, fit_mode: { value: "contain" },
     hidden: { checked: false },
   };
@@ -171,7 +171,7 @@ test("hiding a camera leaves its former tab", async () => {
     };
   } };
   const fields = {
-    category: { value: "" }, name: { value: "" }, order: { value: "0" },
+    category: { value: "" }, name: { value: "" },
     image_entity: { value: "camera.front" }, camera_view: { value: "auto" },
     fit_mode: { value: "contain" }, hidden: { checked: true },
   };
@@ -254,10 +254,103 @@ test("a visible camera has a compact edit control over its picture", () => {
   }, option: {}, image_entities: ["camera.front"], groups: [], group_by: "area" });
   card.hass = { user: { is_admin: true } };
   assert.match(card.innerHTML, /class="camera-edit"/);
+  assert.match(card.innerHTML, /class="camera-expand"/);
+  assert.match(card.innerHTML, /camera-view:hover \.camera-expand/);
   assert.match(card.innerHTML, /mdi:pencil/);
   assert.match(card.innerHTML, /width:44px; height:44px/);
   assert.deepEqual(card.getGridOptions(), { columns: 12, rows: "auto" });
   assert.doesNotMatch(card.innerHTML, /camera-toolbar/);
+});
+
+test("unavailable cameras have a clear tile state and failed previews can be retried", () => {
+  const Card = elements.get("onvif-camera-dashboard-camera-card");
+  const card = new Card();
+  card.querySelector = () => null;
+  card._mountPicture = () => {};
+  card.setConfig({ camera_key: "onvif:hall", camera: {
+    entity: "camera.hall", camera_image: "camera.hall", name: "Hallway",
+  }, option: {}, image_entities: ["camera.hall"], groups: [], group_by: "area" });
+  card.hass = { user: { is_admin: false }, states: { "camera.hall": { state: "unavailable" } } };
+  assert.match(card.innerHTML, /Camera unavailable/);
+  assert.doesNotMatch(card.innerHTML, /Retry preview/);
+  card.hass = { user: { is_admin: false }, states: { "camera.hall": { state: "idle" } } };
+  assert.doesNotMatch(card.innerHTML, /Camera unavailable/);
+  card.hass = { user: { is_admin: false }, states: {} };
+  assert.match(card.innerHTML, /Preview source missing/);
+  card.hass = { user: { is_admin: false }, states: { "camera.hall": { state: "idle" } } };
+  card._pictureError = "Could not create picture card";
+  card.render();
+  assert.match(card.innerHTML, /Preview failed/);
+  assert.match(card.innerHTML, /Retry preview/);
+  card._click({ target: { closest: () => ({ dataset: { action: "retry-preview" } }) } });
+  assert.equal(card._pictureError, "");
+  assert.doesNotMatch(card.innerHTML, /Preview failed/);
+});
+
+test("camera editor previews and saves a visual move within its tab", async () => {
+  const Card = elements.get("onvif-camera-dashboard-camera-card");
+  const card = new Card();
+  const cameraOptions = {
+    "onvif:up": { name: "Up" }, "onvif:gate": { name: "Gate" },
+    "onvif:wall": { name: "Wall" }, "onvif:other": { name: "Other", order: 9 },
+  };
+  card._config = { camera_key: "onvif:gate", option: {},
+    camera: { entity: "camera.gate", name: "Gate" },
+    viewer_cameras: [
+      { key: "onvif:up", name: "Up" }, { key: "onvif:gate", name: "Gate" },
+      { key: "onvif:wall", name: "Wall" },
+    ] };
+  card._open = true;
+  const fields = {
+    category: { value: "" }, name: { value: "Gate" },
+    image_entity: { value: "camera.gate" }, camera_view: { value: "auto" },
+    fit_mode: { value: "contain" }, hidden: { checked: false },
+  };
+  const list = { innerHTML: "" };
+  const hint = { textContent: "" };
+  const earlier = { disabled: false };
+  const later = { disabled: false };
+  const controls = { querySelector(selector) { return ({ ol: list,
+    ".camera-reorder-hint": hint,
+    'button[data-action="move-earlier"]': earlier,
+    'button[data-action="move-later"]': later,
+  })[selector]; } };
+  card.querySelector = (selector) => ({
+    ".camera-reorder": controls,
+    "form[data-camera-editor]": { elements: { namedItem: (name) => fields[name] } },
+  })[selector] || null;
+  let saved;
+  card._hass = { user: { is_admin: true }, callWS: async (request) => {
+    if (request.type === "lovelace/config") return {
+      strategy: { type: "custom:onvif-camera-dashboard", camera_options: cameraOptions },
+    };
+    if (request.type === "lovelace/config/save") saved = request.config;
+  } };
+  const oldDocument = globalThis.document;
+  let toast;
+  globalThis.document = { body: { append(element) { toast = element; } },
+    getElementById: () => toast,
+    createElement: () => ({ style: {}, setAttribute() {}, remove() {} }),
+  };
+  try {
+    card._moveCamera(-1);
+    assert.deepEqual(card._orderKeys(), ["onvif:gate", "onvif:up", "onvif:wall"]);
+    assert.match(list.innerHTML, /class="current" aria-current="true">Gate/);
+    assert.equal(hint.textContent, "Position 1 of 3");
+    assert.equal(earlier.disabled, true);
+    fields.category.value = "area:elsewhere";
+    card._moveCamera(1);
+    assert.deepEqual(card._orderKeys(), ["onvif:gate", "onvif:up", "onvif:wall"]);
+    fields.category.value = "";
+    await card._save();
+    assert.equal(saved.strategy.camera_options["onvif:gate"].order, 1);
+    assert.equal(saved.strategy.camera_options["onvif:up"].order, 2);
+    assert.equal(saved.strategy.camera_options["onvif:wall"].order, 3);
+    assert.deepEqual(saved.strategy.camera_options["onvif:other"], { name: "Other", order: 9 });
+    assert.equal(toast.textContent, "Camera saved");
+  } finally {
+    globalThis.document = oldDocument;
+  }
 });
 
 test("camera viewer loads the selected stream only while open, including for viewers", async () => {

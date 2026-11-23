@@ -168,7 +168,7 @@ export function generateDashboard(config, hass, entries) {
     if (hiddenCameras.length) {
       views.push({
         title: "Hidden", path: "hidden-cameras", icon: "mdi:eye-off-outline",
-        type: "sections", max_columns: 1,
+        show_icon_and_title: true, type: "sections", max_columns: 1,
         sections: [{ type: "grid", cards: [
           { type: "heading", heading: "Hidden cameras", heading_style: "title", icon: "mdi:eye-off-outline" },
           ...hiddenCameras.sort((a, b) => cameraName(a, cameraOption(config, a), hass)
@@ -179,6 +179,7 @@ export function generateDashboard(config, hass, entries) {
     }
     views.push({
       title: "Settings", path: "manage", icon: "mdi:cog", type: "sections", max_columns: 1,
+      show_icon_and_title: true,
       sections: [{ type: "grid", cards: [{ type: "custom:onvif-camera-dashboard-manager" }] }],
       cards: [],
     });
