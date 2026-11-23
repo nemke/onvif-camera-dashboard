@@ -69,6 +69,60 @@ test("manager loads dashboard settings when hass arrives after connection", asyn
   assert.doesNotMatch(manager.innerHTML, /<label>Camera view/);
 });
 
+test("manager retries dashboard settings after an initial load failure", async () => {
+  const Manager = elements.get("onvif-camera-dashboard-manager");
+  const manager = new Manager();
+  manager.connectedCallback();
+  let settingsLoads = 0;
+  manager.hass = { ...hass, callWS: async (request) => {
+    if (request.type === "lovelace/config") {
+      settingsLoads += 1;
+      if (settingsLoads === 1) throw new Error("Connection lost");
+    }
+    return hass.callWS(request);
+  } };
+  await manager._setupPromise;
+  assert.match(manager.innerHTML, /Could not load dashboard settings: Connection lost/);
+  assert.match(manager.innerHTML, /Retry loading settings/);
+
+  await manager._click({ target: { dataset: { action: "retry-settings" } } });
+  assert.equal(settingsLoads, 2);
+  assert.equal(manager._ready, true);
+  assert.match(manager.innerHTML, /Dashboard tabs/);
+  assert.doesNotMatch(manager.innerHTML, /Retry loading settings/);
+});
+
+test("settings keeps camera tabs visible and folds away unused areas", () => {
+  const Manager = elements.get("onvif-camera-dashboard-manager");
+  const manager = new Manager();
+  manager._ready = true;
+  manager._config = { type: "custom:onvif-camera-dashboard", group_by: "area" };
+  manager._hass = { ...hass, areas: {
+    ...hass.areas, garage: { area_id: "garage", name: "Garage" },
+  } };
+  manager._entries = entries;
+  manager.render();
+  assert.match(manager.innerHTML, /Other areas \(1\)/);
+  assert.ok(manager.innerHTML.indexOf('data-group-id="area:front"')
+    < manager.innerHTML.indexOf('class="other-groups"'));
+  assert.ok(manager.innerHTML.indexOf('class="other-groups"')
+    < manager.innerHTML.indexOf('data-group-id="area:garage"'));
+});
+
+test("editing a tab name keeps the save control mounted", () => {
+  const Manager = elements.get("onvif-camera-dashboard-manager");
+  const manager = new Manager();
+  manager._mode = "manage";
+  const status = { textContent: "", className: "" };
+  manager.querySelector = (selector) => selector === ".actions [role=status]" ? status : null;
+  manager.render = () => { throw new Error("Changing a name must not replace the save button"); };
+  manager._change({ target: {
+    dataset: { field: "title", groupId: "area:front" }, value: "Front entrance",
+  } });
+  assert.equal(manager._config.group_options["area:front"].title, "Front entrance");
+  assert.equal(status.textContent, "Unsaved changes");
+});
+
 test("tab icon choice updates the selected tab", () => {
   const Manager = elements.get("onvif-camera-dashboard-manager");
   const manager = new Manager();
@@ -518,6 +572,8 @@ test("viewer swipe stays within its camera category and updates the live source"
     card._click({ target: { closest: () => ({ dataset: { action: "view" } }) } });
     await card._mountViewer();
     assert.equal(created.at(-1).entity, "camera.gate");
+    assert.equal(created.at(-1).aspect_ratio, undefined);
+    assert.equal(created.at(-1).fit_mode, "contain");
     assert.equal(viewerListeners.touchstart.options.capture, true);
     assert.equal(viewerListeners.touchend.options.capture, true);
     assert.equal(viewerListeners.touchend.options.passive, false);

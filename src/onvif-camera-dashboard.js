@@ -1,4 +1,4 @@
-import { STRATEGY_TYPE, UNASSIGNED, eligibleCameras, generateDashboard, importDashboard } from "./core.js";
+import { STRATEGY_TYPE, UNASSIGNED, cameraOption, eligibleCameras, generateDashboard, groupsFor, importDashboard } from "./core.js";
 
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -7,7 +7,8 @@ const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
 const styles = `
   <style>
     :host { display:block; color:var(--primary-text-color); font:inherit; }
-    .panel { padding:20px; background:var(--ha-card-background,var(--card-background-color,#fff));
+    .panel { box-sizing:border-box; width:min(100%,900px); margin:0 auto; padding:20px;
+      background:var(--ha-card-background,var(--card-background-color,#fff));
       border:1px solid var(--divider-color,#ddd); border-radius:12px; }
     h2 { margin:0 0 12px; font-size:1.25rem; } h3 { margin:24px 0 10px; font-size:1rem; }
     p, .hint { color:var(--secondary-text-color,#666); margin:8px 0 16px; }
@@ -20,16 +21,37 @@ const styles = `
     label.check { flex:none; min-width:auto; flex-direction:row; align-items:center; }
     button { min-height:38px; padding:7px 12px; border:1px solid var(--divider-color,#aaa);
       background:var(--secondary-background-color,#eee); color:var(--primary-text-color); cursor:pointer; }
-    button.primary { background:var(--primary-color,#03a9f4); border-color:var(--primary-color,#03a9f4); color:#fff; }
+    button.primary { background:#005b83;
+      background:color-mix(in srgb,var(--primary-color,#03a9f4) 45%,black);
+      border-color:transparent; color:#fff; }
     button:disabled { opacity:.5; cursor:default; }
-    .item { padding:12px; margin:8px 0; border:1px solid var(--divider-color,#ddd); border-radius:8px; }
+    .item { padding:10px; margin:6px 0; border:1px solid var(--divider-color,#ddd); border-radius:8px; }
+    .tab-row { display:grid; grid-template-columns:minmax(0,2fr) minmax(160px,1fr) 90px;
+      align-items:end; gap:10px; margin:0; }
+    .tab-row.with-actions { grid-template-columns:minmax(0,2fr) minmax(160px,1fr) 90px auto; }
+    .tab-row label, .tab-row .icon-select { min-width:0; width:100%; }
+    .tab-row .tab-actions { display:flex; gap:6px; }
+    .tab-row .tab-actions button { padding:7px 9px; }
     .icon-select { flex:1; min-width:180px; }
     .icon-select ha-selector { display:block; width:100%; }
     .small { flex:0 0 90px; min-width:90px; }
-    .actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:18px; }
+    .actions { display:flex; gap:12px; flex-wrap:wrap; align-items:center;
+      position:sticky; bottom:0; z-index:4; margin-top:18px;
+      padding:12px 0 calc(12px + env(safe-area-inset-bottom));
+      background:var(--ha-card-background,var(--card-background-color,#fff));
+      border-top:1px solid var(--divider-color,#ddd); }
+    .actions p { margin:0; }
+    .other-groups { margin-top:12px; }
+    .other-groups summary { cursor:pointer; padding:10px 0; }
     .import { margin-top:20px; } .import summary { cursor:pointer; }
     .error { color:var(--error-color,#d32f2f); }
     .success { color:var(--success-color,#2e7d32); }
+    @media (max-width:600px) {
+      .panel { padding:14px; }
+      .tab-row, .tab-row.with-actions { grid-template-columns:minmax(0,1fr) 90px; gap:8px; }
+      .tab-row .tab-name, .tab-row .tab-actions { grid-column:1/-1; }
+      .tab-row .tab-actions { flex-wrap:wrap; }
+    }
   </style>`;
 
 function currentDashboardPath() {
@@ -255,11 +277,15 @@ class CameraDashboardEditor extends HTMLElement {
     }));
   }
 
-  _setConfig(config) {
+  _setConfig(config, rerender = true) {
     this._config = config;
     this._status = "Unsaved changes";
     if (this._mode === "create") this._emit();
-    this.render();
+    if (rerender) this.render();
+    else {
+      const status = this.querySelector(".actions [role=status]");
+      if (status) { status.textContent = this._status; status.className = "hint"; }
+    }
   }
 
   _change(event) {
@@ -278,7 +304,7 @@ class CameraDashboardEditor extends HTMLElement {
           ...this._config,
           categories: (this._config.categories || []).map((group) =>
             group.id === groupId ? { ...group, [field]: adjusted } : group),
-        });
+        }, false);
       } else {
         this._setConfig({
           ...this._config,
@@ -286,7 +312,7 @@ class CameraDashboardEditor extends HTMLElement {
             ...this._config.group_options,
             [groupId]: { ...this._config.group_options?.[groupId], [field]: adjusted },
           },
-        });
+        }, false);
       }
     }
   }
@@ -351,24 +377,34 @@ class CameraDashboardEditor extends HTMLElement {
       id: UNASSIGNED, title: "Unassigned", icon: "mdi:help-circle-outline",
       ...this._config.group_options?.[UNASSIGNED],
     }];
-    if (!groups.length) return `<p class="hint">No categories yet.</p>`;
-    return groups.map((group) => `<div class="item">
-      <div class="row">
-        <label>Name<input data-field="title" data-group-id="${esc(group.id)}" value="${esc(group.title)}"></label>
+    const row = (group) => `<div class="item">
+      <div class="tab-row ${custom && group.id !== UNASSIGNED ? "with-actions" : ""}">
+        <label class="tab-name">Name<input data-field="title" data-group-id="${esc(group.id)}" value="${esc(group.title)}"></label>
         <div class="icon-select">${this._iconPickerReady && this._hass
           ? `<ha-selector data-group-id="${esc(group.id)}" data-icon="${esc(group.icon)}"></ha-selector>`
           : `<span class="hint">${this._iconPickerError ? "Icon picker unavailable" : "Loading icons…"}</span>`}</div>
         <label class="small" title="Maximum camera columns on wide screens; narrow screens use fewer">Camera columns<input type="number" min="1" max="4" data-field="max_columns"
           data-group-id="${esc(group.id)}" value="${esc(group.max_columns || 2)}"></label>
-        ${custom && group.id !== UNASSIGNED ? `<button data-action="move-category" data-group-id="${esc(group.id)}" data-offset="-1" title="Move up">↑</button>
+        ${custom && group.id !== UNASSIGNED ? `<div class="tab-actions"><button data-action="move-category" data-group-id="${esc(group.id)}" data-offset="-1" title="Move up">↑</button>
           <button data-action="move-category" data-group-id="${esc(group.id)}" data-offset="1" title="Move down">↓</button>
-          <button data-action="remove-category" data-group-id="${esc(group.id)}">Remove</button>` : ""}
+          <button data-action="remove-category" data-group-id="${esc(group.id)}">Remove</button></div>` : ""}
       </div>
-    </div>`).join("");
+    </div>`;
+    if (this._loading && !custom) return `<p class="hint">Loading camera tabs…</p>`;
+    if (custom || !this._hass || this._error) return groups.map(row).join("");
+    const visible = this._entries.filter((entry) => !cameraOption(this._config, entry).hidden);
+    const activeIds = new Set(groupsFor(this._config, this._hass, visible).map((group) => group.id));
+    activeIds.add(UNASSIGNED);
+    const active = groups.filter((group) => activeIds.has(group.id));
+    const unused = groups.filter((group) => !activeIds.has(group.id));
+    const kind = this._config.group_by === "floor" ? "floors" : "areas";
+    return `${active.map(row).join("")}${unused.length ? `<details class="other-groups" ${this._otherGroupsOpen ? "open" : ""}>
+      <summary>Other ${kind} (${unused.length})</summary>${unused.map(row).join("")}</details>` : ""}`;
   }
 
   render() {
     if (!this.isConnected) return;
+    this._otherGroupsOpen = this.querySelector("details.other-groups")?.open ?? this._otherGroupsOpen;
     const custom = this._config.group_by === "custom";
     this.innerHTML = `${styles}<div class="panel">
       <h2>Dashboard tabs</h2>
@@ -391,8 +427,8 @@ class CameraDashboardEditor extends HTMLElement {
             .map((item) => `<option value="${esc(item.url_path)}">${esc(item.title || item.url_path)}</option>`).join("")}
         </select></label><button data-action="import">Import into draft</button></div>
         <p class="hint">Imports tab names, icons, layout, and camera placement. Review the tabs before saving.</p></details>
-        <div class="actions"><button class="primary" data-action="save">Save dashboard</button></div>
-        <p class="${this._status === "Saved" ? "success" : "hint"}">${esc(this._status)}</p>
+        <div class="actions"><button class="primary" data-action="save" ${this._saving ? "disabled" : ""}>${this._saving ? "Saving…" : "Save dashboard"}</button>
+          <p role="status" class="${this._status === "Saved" ? "success" : this._status.startsWith("Save failed") ? "error" : "hint"}">${esc(this._status)}</p></div>
       ` : ""}
     </div>`;
     for (const picker of this.querySelectorAll("ha-selector[data-group-id]")) {
@@ -432,7 +468,9 @@ class CameraDashboardEditor extends HTMLElement {
   }
 
   async _save() {
-    if (!this._hass?.user?.is_admin) return;
+    if (!this._hass?.user?.is_admin || this._saving) return;
+    this._saving = true;
+    this.render();
     try {
       const raw = await this._hass.callWS({
         type: "lovelace/config", url_path: this._dashboardPath, force: false,
@@ -445,9 +483,10 @@ class CameraDashboardEditor extends HTMLElement {
         config: { ...raw, strategy: { ...raw.strategy, ...this._config } },
       });
       this._status = "Saved";
-      this.render();
     } catch (error) {
       this._status = `Save failed: ${error.message || error}`;
+    } finally {
+      this._saving = false;
       this.render();
     }
   }
@@ -653,7 +692,6 @@ class CameraDashboardCameraCard extends HTMLElement {
           name: selected.name,
           camera_view: "live",
           fit_mode: "contain",
-          aspect_ratio: "16x9",
           show_name: false,
           show_state: false,
           tap_action: { action: "none" },
@@ -749,12 +787,12 @@ class CameraDashboardCameraCard extends HTMLElement {
         border:1px solid #fff8; border-radius:8px; padding:4px 12px;
         background:#333; color:#fff; pointer-events:auto; cursor:pointer; }
       onvif-camera-dashboard-camera-card .hidden-camera { display:flex; flex-direction:column;
-        justify-content:center; min-height:80px; padding:12px 16px 12px 58px; box-sizing:border-box;
+        justify-content:center; min-height:80px; padding:12px 58px 12px 16px; box-sizing:border-box;
         color:var(--secondary-text-color,#666);
         background:var(--ha-card-background,var(--card-background-color,#fff));
         border-radius:var(--ha-card-border-radius,12px); }
       onvif-camera-dashboard-camera-card .hidden-camera strong { color:var(--primary-text-color); }
-      onvif-camera-dashboard-camera-card .camera-edit { position:absolute; bottom:8px; left:8px; z-index:3;
+      onvif-camera-dashboard-camera-card .camera-edit { position:absolute; top:8px; right:8px; z-index:3;
         display:flex; align-items:center; justify-content:center; width:44px; height:44px; padding:0;
         border:0; border-radius:50%; background:rgba(0,0,0,.62); color:#fff; opacity:.85;
         cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,.25); }
@@ -781,7 +819,7 @@ class CameraDashboardCameraCard extends HTMLElement {
       onvif-camera-dashboard-camera-card .viewer-close:hover,
       onvif-camera-dashboard-camera-card .viewer-close:focus-visible { background:#555; }
       onvif-camera-dashboard-camera-card .viewer-stage { flex:1; min-height:0; display:grid; place-items:center; }
-      onvif-camera-dashboard-camera-card .viewer-stage > * { width:100%; max-width:calc(177.78dvh - 213px); }
+      onvif-camera-dashboard-camera-card .viewer-stage > * { width:100%; height:100%; max-width:100%; max-height:100%; }
       onvif-camera-dashboard-camera-card .viewer-error { color:#fff; text-align:center; }
       onvif-camera-dashboard-camera-card .viewer-error:empty { display:none; }
       @media (max-width:600px) {
@@ -792,7 +830,8 @@ class CameraDashboardCameraCard extends HTMLElement {
         border-radius:8px; min-height:44px; padding:8px 12px;
         color:var(--primary-text-color); background:var(--secondary-background-color,#eee); }
       onvif-camera-dashboard-camera-card button:disabled { opacity:.5; cursor:default; }
-      onvif-camera-dashboard-camera-card button.primary { color:#fff; background:var(--primary-color,#03a9f4); }
+      onvif-camera-dashboard-camera-card button.primary { color:#fff; background:#005b83;
+        background:color-mix(in srgb,var(--primary-color,#03a9f4) 45%,black); }
       onvif-camera-dashboard-camera-card .camera-dialog { box-sizing:border-box; width:min(560px,calc(100vw - 32px));
         max-height:min(80vh,720px); overflow:auto; padding:20px; border:1px solid var(--divider-color,#555);
         border-radius:16px; box-shadow:0 16px 48px rgba(0,0,0,.4);
@@ -1033,6 +1072,7 @@ class CameraDashboardManager extends CameraDashboardEditor {
     super();
     this._mode = "manage";
     this._ready = false;
+    this._setupError = "";
   }
 
   setConfig() {}
@@ -1053,10 +1093,24 @@ class CameraDashboardManager extends CameraDashboardEditor {
     if (!this.isConnected) return;
     if (!this._ready) {
       this.innerHTML = `${styles}<div class="panel"><h2>ONVIF Camera Dashboard</h2>
-        <p>${this._error ? esc(this._error) : "Loading dashboard settings…"}</p></div>`;
+        ${this._setupError ? `<p class="error" role="alert">${esc(this._setupError)}</p>
+          <button type="button" data-action="retry-settings">Retry loading settings</button>`
+          : "<p>Loading dashboard settings…</p>"}</div>`;
       return;
     }
     super.render();
+  }
+
+  async _click(event) {
+    if (event.target?.dataset?.action === "retry-settings") {
+      if (!this._setupError) return;
+      this._setupError = "";
+      this._setupPromise = null;
+      this.render();
+      await this._ensureSetup();
+      return;
+    }
+    await super._click(event);
   }
 
   async _ensureSetup() {
@@ -1064,17 +1118,18 @@ class CameraDashboardManager extends CameraDashboardEditor {
     this._dashboardPath = currentDashboardPath();
     this._setupPromise = (async () => {
       try {
-      const [raw, dashboards] = await Promise.all([
-        this._hass.callWS({ type: "lovelace/config", url_path: this._dashboardPath, force: false }),
-        this._hass.callWS({ type: "lovelace/dashboards/list" }),
-      ]);
-      if (raw.strategy?.type !== STRATEGY_TYPE) throw new Error("Dashboard strategy mismatch.");
-      this._config = { ...raw.strategy };
-      this._dashboards = Array.isArray(dashboards) ? dashboards : [];
-      this._ready = true;
-      this.render();
+        const [raw, dashboards] = await Promise.all([
+          this._hass.callWS({ type: "lovelace/config", url_path: this._dashboardPath, force: false }),
+          this._hass.callWS({ type: "lovelace/dashboards/list" }),
+        ]);
+        if (raw.strategy?.type !== STRATEGY_TYPE) throw new Error("Dashboard strategy mismatch.");
+        this._config = { ...raw.strategy };
+        this._dashboards = Array.isArray(dashboards) ? dashboards : [];
+        this._setupError = "";
+        this._ready = true;
+        this.render();
       } catch (error) {
-        this._error = `Could not load dashboard settings: ${error.message || error}`;
+        this._setupError = `Could not load dashboard settings: ${error.message || error}`;
         this.render();
       }
     })();
