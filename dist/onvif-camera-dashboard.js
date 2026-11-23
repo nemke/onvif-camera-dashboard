@@ -627,7 +627,7 @@ class CameraDashboardCameraCard extends HTMLElement {
       onvif-camera-dashboard-camera-card .camera-viewer { box-sizing:border-box;
         width:calc(100vw - 24px); height:calc(100vh - 24px); height:calc(100dvh - 24px);
         max-width:none; max-height:none; margin:auto; padding:16px; border:1px solid var(--divider-color,#555);
-        border-radius:12px; color:#fff; background:#111; touch-action:pan-y; }
+        border-radius:12px; color:#fff; background:#111; }
       onvif-camera-dashboard-camera-card .camera-viewer[open] { display:flex; flex-direction:column; }
       onvif-camera-dashboard-camera-card .camera-viewer::backdrop { background:rgba(0,0,0,.85); }
       onvif-camera-dashboard-camera-card .viewer-header { display:flex; align-items:center; justify-content:space-between;
@@ -740,9 +740,9 @@ class CameraDashboardCameraCard extends HTMLElement {
       event.preventDefault();
       this._closeViewer();
     });
-    viewer?.addEventListener("touchstart", (event) => this._startViewerSwipe(event), { passive: true });
-    viewer?.addEventListener("touchend", (event) => this._endViewerSwipe(event), { passive: false });
-    viewer?.addEventListener("touchcancel", () => { this._viewerGesture = null; });
+    viewer?.addEventListener("touchstart", (event) => this._startViewerSwipe(event), { passive: true, capture: true });
+    viewer?.addEventListener("touchend", (event) => this._endViewerSwipe(event), { passive: false, capture: true });
+    viewer?.addEventListener("touchcancel", () => { this._viewerGesture = null; }, { capture: true });
     viewer?.showModal?.();
     if (viewer) this.querySelector("#camera-viewer-title")?.focus?.();
     if (viewer) this._mountViewer();

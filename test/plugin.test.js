@@ -363,7 +363,10 @@ test("viewer swipe stays within its camera category and updates the live source"
   const position = { textContent: "" };
   const previous = { disabled: false };
   const next = { disabled: false };
-  const dialog = { addEventListener() {}, showModal() {}, close() {} };
+  const viewerListeners = {};
+  const dialog = { addEventListener(type, handler, options) {
+    viewerListeners[type] = { handler, options };
+  }, showModal() {}, close() {} };
   card.querySelector = (selector) => ({
     ".camera-picture": { replaceChildren() {} },
     ".viewer-stage": { replaceChildren() {} },
@@ -386,8 +389,25 @@ test("viewer swipe stays within its camera category and updates the live source"
     card._click({ target: { closest: () => ({ dataset: { action: "view" } }) } });
     await card._mountViewer();
     assert.equal(created.at(-1).entity, "camera.gate");
-    card._startViewerSwipe({ touches: [{ identifier: 7, clientX: 250, clientY: 300 }], composedPath: () => [] });
-    card._endViewerSwipe({ touches: [], changedTouches: [{ identifier: 7, clientX: 100, clientY: 310 }], preventDefault() {} });
+    assert.equal(viewerListeners.touchstart.options.capture, true);
+    assert.equal(viewerListeners.touchend.options.capture, true);
+    assert.equal(viewerListeners.touchend.options.passive, false);
+    assert.equal(viewerListeners.touchcancel.options.capture, true);
+    let prevented = false;
+    const start = (touches) => viewerListeners.touchstart.handler({ touches, composedPath: () => [] });
+    const end = (x, y) => viewerListeners.touchend.handler({ touches: [],
+      changedTouches: [{ identifier: 7, clientX: x, clientY: y }],
+      preventDefault() { prevented = true; },
+    });
+    start([{ identifier: 7, clientX: 250, clientY: 300 }]);
+    start([{ identifier: 7, clientX: 250, clientY: 300 },
+      { identifier: 8, clientX: 270, clientY: 300 }]);
+    end(100, 310);
+    assert.equal(prevented, false);
+    assert.equal(card._viewerIndex, 0);
+    start([{ identifier: 7, clientX: 250, clientY: 300 }]);
+    end(100, 310);
+    assert.equal(prevented, true);
     await card._mountViewer();
     assert.equal(card._viewerIndex, 1);
     assert.equal(created.at(-1).entity, "camera.wall");
