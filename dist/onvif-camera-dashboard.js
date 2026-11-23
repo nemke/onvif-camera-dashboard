@@ -462,16 +462,19 @@ class CameraDashboardCameraCard extends HTMLElement {
     this._viewerIndex = 0;
     this._saving = false;
     this._reorderKeys = null;
+    this._previewLoadError = false;
     this.addEventListener("click", (event) => this._click(event));
   }
 
   setConfig(config) {
     if (!config?.camera?.entity || !config.camera_key) throw new Error("Camera card configuration is incomplete.");
     this._closeViewer(false);
+    this._disconnectPictureObservers();
     this._config = config;
     this._picture = null;
     this._picturePromise = null;
     this._pictureError = "";
+    this._previewLoadError = false;
     this._open = false;
     this._draft = null;
     this._reorderKeys = null;
@@ -483,6 +486,7 @@ class CameraDashboardCameraCard extends HTMLElement {
     const oldStatus = this._previewStatus()?.message;
     this._hass = hass;
     if (this._picture) this._picture.hass = hass;
+    if (this._picture) this._watchPicture();
     if (this._viewerCard) this._viewerCard.hass = hass;
     if (wasAdmin !== hass.user?.is_admin
       || (!this._open && !this._viewerOpen && oldStatus !== this._previewStatus()?.message)) this.render();
@@ -494,6 +498,7 @@ class CameraDashboardCameraCard extends HTMLElement {
 
   disconnectedCallback() {
     if (CameraDashboardCameraCard.activeEditor === this) CameraDashboardCameraCard.activeEditor = null;
+    this._disconnectPictureObservers();
     this._closeViewer(false);
   }
 
@@ -502,7 +507,7 @@ class CameraDashboardCameraCard extends HTMLElement {
   getGridOptions() { return { columns: 12, rows: "auto" }; }
 
   _previewStatus() {
-    if (this._pictureError) return { message: "Preview failed", retry: true };
+    if (this._pictureError || this._previewLoadError) return { message: "Preview failed", retry: true };
     const source = this._config?.camera?.camera_image || this._config?.camera?.entity;
     if (this._hass?.states && source && !this._hass.states[source]) {
       return { message: "Preview source missing" };
@@ -555,10 +560,47 @@ class CameraDashboardCameraCard extends HTMLElement {
     this._updateReorderControls();
   }
 
+  _disconnectPictureObservers() {
+    this._pictureObserver?.disconnect();
+    this._imageObserver?.disconnect();
+    this._pictureObserver = null;
+    this._imageObserver = null;
+    this._observedPicture = null;
+    this._observedImageRoot = null;
+  }
+
+  _syncPreviewLoadState() {
+    const failed = Boolean(this._observedImageRoot?.querySelector("#brokenImage"));
+    if (failed === this._previewLoadError) return;
+    this._previewLoadError = failed;
+    if (!this._open && !this._viewerOpen) this.render();
+  }
+
+  _watchPicture() {
+    const picture = this._picture;
+    if (!globalThis.MutationObserver || !picture?.shadowRoot) return;
+    if (this._observedPicture === picture) return;
+    this._disconnectPictureObservers();
+    this._observedPicture = picture;
+    const attachImage = () => {
+      const imageRoot = picture.shadowRoot.querySelector("hui-image")?.shadowRoot;
+      if (!imageRoot || imageRoot === this._observedImageRoot) return;
+      this._imageObserver?.disconnect();
+      this._observedImageRoot = imageRoot;
+      this._imageObserver = new MutationObserver(() => this._syncPreviewLoadState());
+      this._imageObserver.observe(imageRoot, { childList: true, subtree: true });
+      this._syncPreviewLoadState();
+    };
+    this._pictureObserver = new MutationObserver(attachImage);
+    this._pictureObserver.observe(picture.shadowRoot, { childList: true, subtree: true });
+    attachImage();
+  }
+
   async _mountPicture() {
     if (this._config?.option?.hidden) return;
     if (this._picture) {
       this.querySelector(".camera-picture")?.replaceChildren(this._picture);
+      this._watchPicture();
       return;
     }
     if (this._picturePromise || this._pictureError || !this._config) return;
@@ -568,6 +610,8 @@ class CameraDashboardCameraCard extends HTMLElement {
         this._picture = helpers.createCardElement(this._config.camera);
         if (this._hass) this._picture.hass = this._hass;
         this.querySelector(".camera-picture")?.replaceChildren(this._picture);
+        await this._picture.updateComplete;
+        this._watchPicture();
       } catch (error) {
         this._pictureError = `Could not load camera card: ${error.message || error}`;
         this.render();
@@ -869,7 +913,10 @@ class CameraDashboardCameraCard extends HTMLElement {
     if (action === "next-camera") { this._selectViewer(this._viewerIndex + 1); return; }
     if (action === "close-viewer") { this._closeViewer(); return; }
     if (action === "retry-preview") {
+      this._disconnectPictureObservers();
+      this._picture?.remove?.();
       this._pictureError = "";
+      this._previewLoadError = false;
       this._picture = null;
       this._picturePromise = null;
       this.render();

@@ -287,6 +287,42 @@ test("unavailable cameras have a clear tile state and failed previews can be ret
   assert.doesNotMatch(card.innerHTML, /Preview failed/);
 });
 
+test("a broken Home Assistant camera image shows a retryable preview error", () => {
+  const Card = elements.get("onvif-camera-dashboard-camera-card");
+  const card = new Card();
+  card.querySelector = () => null;
+  card._mountPicture = () => {};
+  card.setConfig({ camera_key: "onvif:hall", camera: {
+    entity: "camera.hall", camera_image: "camera.hall", name: "Hallway",
+  }, option: {}, image_entities: ["camera.hall"], groups: [], group_by: "area" });
+  card.hass = { user: { is_admin: false }, states: { "camera.hall": { state: "idle" } } };
+  const oldObserver = globalThis.MutationObserver;
+  const observers = [];
+  let broken = false;
+  globalThis.MutationObserver = class {
+    constructor(callback) { this.callback = callback; observers.push(this); }
+    observe() {}
+    disconnect() {}
+  };
+  const imageRoot = { querySelector: (selector) => selector === "#brokenImage" && broken ? {} : null };
+  card._picture = { shadowRoot: { querySelector: (selector) => selector === "hui-image"
+    ? { shadowRoot: imageRoot } : null } };
+  try {
+    card._watchPicture();
+    assert.equal(observers.length, 2);
+    broken = true;
+    observers[1].callback();
+    assert.match(card.innerHTML, /Preview failed/);
+    assert.match(card.innerHTML, /Retry preview/);
+    broken = false;
+    observers[1].callback();
+    assert.doesNotMatch(card.innerHTML, /Preview failed/);
+  } finally {
+    card._disconnectPictureObservers();
+    globalThis.MutationObserver = oldObserver;
+  }
+});
+
 test("camera editor previews and saves a visual move within its tab", async () => {
   const Card = elements.get("onvif-camera-dashboard-camera-card");
   const card = new Card();
