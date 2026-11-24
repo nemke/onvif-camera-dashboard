@@ -20,7 +20,7 @@ A Home Assistant dashboard plugin that adds every **configured, enabled ONVIF ca
 - An admin-only **Hidden** tab for restoring hidden cameras without showing them among live feeds. Hidden and Settings show text labels alongside their icons.
 - An **Unassigned** tab for cameras without a category.
 - An administrator **Settings** tab for managing tabs, with unused areas or floors folded away, a sticky Save control, a retry button after settings load failures, and an optional importer for an existing dashboard.
-- Multiple ONVIF profiles stay separate. A card may use a different `camera_image` entity, as in the supplied Hallway example.
+- Multiple ONVIF profiles stay separate. A card can use a different camera entity as its image or stream source.
 
 The plugin reads camera entities that Home Assistant's ONVIF integration has already created. ONVIF network discovery, camera credentials, and stream troubleshooting remain in Home Assistant's ONVIF setup.
 
@@ -28,7 +28,7 @@ The plugin reads camera entities that Home Assistant's ONVIF integration has alr
 
 Requires Home Assistant **2026.11.0 or newer**.
 
-1. Select the Marketplace badge above to open this repository in Home Assistant. While the catalog submission is under review, the link offers to add it as a custom repository. You can also go to **Settings → Marketplace → Add from link** and enter `nemke/onvif-camera-dashboard`.
+1. Select the Marketplace badge above to open this repository in Home Assistant, or search for **ONVIF Camera Dashboard** under **Settings → Marketplace**.
 2. Open **ONVIF Camera Dashboard** in Marketplace and select **Install**.
 3. Reload Home Assistant in your browser. If an older version still appears, do a hard refresh.
 4. Under **Settings → Dashboards**, add **ONVIF Camera Dashboard** from Community dashboards.
@@ -41,7 +41,7 @@ strategy:
   group_by: area
 ```
 
-Open its **Settings** tab to set up the tabs and their maximum **Camera columns**. Home Assistant reduces the number of columns on narrower screens. Swipe between camera tabs, or tap a feed to see it larger and swipe among the cameras in that tab. The Settings and Hidden tabs stay outside the swipe sequence. Use the pencil icon to change a camera's name, tab, image entity, order, view, or visibility. Hidden cameras appear only in the administrator **Hidden** tab, where you can edit them to show them again. To migrate a dashboard like the one in the project brief, expand **Import tabs from an existing dashboard**, choose the source, select **Import into draft**, review the tabs, then select **Save dashboard**. Import reads the source dashboard and updates only the new dashboard when saved.
+Open its **Settings** tab to set up the tabs and their maximum **Camera columns**. Home Assistant reduces the number of columns on narrower screens. Swipe between camera tabs, or tap a feed to see it larger and swipe among the cameras in that tab. The Settings and Hidden tabs stay outside the swipe sequence. Use the pencil icon to change a camera's name, tab, image entity, order, view, or visibility. Hidden cameras appear only in the administrator **Hidden** tab, where you can edit them to show them again. To migrate an existing dashboard, expand **Import tabs from an existing dashboard**, choose the source, select **Import into draft**, review the tabs, then select **Save dashboard**. Import reads the source dashboard and updates only the new dashboard when saved.
 
 ## Manual installation
 
