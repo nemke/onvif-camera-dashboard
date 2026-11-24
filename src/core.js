@@ -115,7 +115,7 @@ export function generateDashboard(config, hass, entries) {
       entity: entry.entity_id,
       camera_image: option.image_entity || entry.entity_id,
       name: cameraName(entry, option, hass),
-      show_name: true,
+      show_name: false,
       show_state: false,
       camera_view: option.camera_view || config.camera_view || "auto",
       fit_mode: option.fit_mode || config.fit_mode || "contain",

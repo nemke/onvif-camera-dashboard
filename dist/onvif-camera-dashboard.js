@@ -646,7 +646,7 @@ class CameraDashboardCameraCard extends HTMLElement {
     this._picturePromise = (async () => {
       try {
         const helpers = await window.loadCardHelpers();
-        this._picture = helpers.createCardElement(this._config.camera);
+        this._picture = helpers.createCardElement({ ...this._config.camera, show_name: false });
         if (this._hass) this._picture.hass = this._hass;
         this.querySelector(".camera-picture")?.replaceChildren(this._picture);
         await this._picture.updateComplete;
@@ -786,6 +786,11 @@ class CameraDashboardCameraCard extends HTMLElement {
       onvif-camera-dashboard-camera-card .camera-status button { min-height:36px;
         border:1px solid #fff8; border-radius:8px; padding:4px 12px;
         background:#333; color:#fff; pointer-events:auto; cursor:pointer; }
+      onvif-camera-dashboard-camera-card .camera-name { position:absolute; bottom:8px; left:8px; z-index:2;
+        box-sizing:border-box; max-width:calc(100% - 16px); padding:4px 8px;
+        overflow:hidden; white-space:nowrap; text-overflow:ellipsis; pointer-events:none;
+        border-radius:6px; background:rgba(0,0,0,.62); color:#fff;
+        font-size:.85rem; font-weight:500; line-height:1.3; }
       onvif-camera-dashboard-camera-card .hidden-camera { display:flex; flex-direction:column;
         justify-content:center; min-height:80px; padding:12px 58px 12px 16px; box-sizing:border-box;
         color:var(--secondary-text-color,#666);
@@ -795,10 +800,18 @@ class CameraDashboardCameraCard extends HTMLElement {
       onvif-camera-dashboard-camera-card .camera-edit { position:absolute; top:8px; right:8px; z-index:3;
         display:flex; align-items:center; justify-content:center; width:44px; height:44px; padding:0;
         border:0; border-radius:50%; background:rgba(0,0,0,.62); color:#fff; opacity:.85;
-        cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,.25); }
+        cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,.25); transition:opacity .15s ease; }
       onvif-camera-dashboard-camera-card .camera-edit:hover,
       onvif-camera-dashboard-camera-card .camera-edit:focus-visible { opacity:1; background:rgba(0,0,0,.85); }
       onvif-camera-dashboard-camera-card .camera-edit ha-icon { --mdc-icon-size:20px; }
+      @media (hover:hover) and (pointer:fine) {
+        onvif-camera-dashboard-camera-card .camera-shell:not(.is-hidden) .camera-edit { opacity:0; }
+        onvif-camera-dashboard-camera-card .camera-shell:not(.is-hidden):hover .camera-edit,
+        onvif-camera-dashboard-camera-card .camera-shell:not(.is-hidden):focus-within .camera-edit { opacity:1; }
+      }
+      @media (any-pointer:coarse) {
+        onvif-camera-dashboard-camera-card .camera-shell:not(.is-hidden) .camera-edit { opacity:.85; }
+      }
       onvif-camera-dashboard-camera-card .camera-viewer { box-sizing:border-box;
         width:calc(100vw - 24px); height:calc(100vh - 24px); height:calc(100dvh - 24px);
         max-width:none; max-height:none; margin:auto; padding:16px; border:1px solid var(--divider-color,#555);
@@ -862,14 +875,15 @@ class CameraDashboardCameraCard extends HTMLElement {
       onvif-camera-dashboard-camera-card .camera-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:20px; }
       onvif-camera-dashboard-camera-card .camera-error { color:var(--error-color,#d32f2f); margin:8px 0; }
     </style>
-    <div class="camera-shell">
+    <div class="camera-shell${this._config.option?.hidden ? " is-hidden" : ""}">
       ${this._config.option?.hidden
         ? `<div class="hidden-camera"><strong>${esc(this._config.camera.name)}</strong><span>Hidden from dashboard</span></div>`
         : `<div class="camera-picture"></div><button class="camera-view" type="button" data-action="view"
             aria-haspopup="dialog" aria-label="View ${esc(this._config.camera.name)} full screen" title="Open camera viewer">
             <span class="camera-expand" aria-hidden="true"><ha-icon icon="mdi:arrow-expand"></ha-icon></span></button>
           ${previewStatus ? `<div class="camera-status" role="status"><span>${esc(previewStatus.message)}</span>
-            ${previewStatus.retry ? `<button type="button" data-action="retry-preview">Retry preview</button>` : ""}</div>` : ""}`}
+            ${previewStatus.retry ? `<button type="button" data-action="retry-preview">Retry preview</button>` : ""}</div>` : ""}
+          <span class="camera-name">${esc(this._config.camera.name)}</span>`}
       ${this._hass?.user?.is_admin ? `<button class="camera-edit" type="button" data-action="edit"
         aria-haspopup="dialog" aria-label="Edit ${esc(this._config.camera.name)}"
         title="Edit camera" ${this._saving ? "disabled" : ""}>

@@ -293,6 +293,8 @@ test("a hidden camera renders an admin placeholder with an edit button", () => {
   card.hass = { user: { is_admin: true } };
   assert.match(card.innerHTML, /Hidden from dashboard/);
   assert.match(card.innerHTML, /Edit camera/);
+  assert.match(card.innerHTML, /class="camera-shell is-hidden"/);
+  assert.doesNotMatch(card.innerHTML, /class="camera-name"/);
   assert.doesNotMatch(card.innerHTML, /camera-toolbar/);
   assert.doesNotMatch(card.innerHTML, /class="camera-picture"/);
   assert.doesNotMatch(card.innerHTML, /class="camera-view"/);
@@ -308,6 +310,7 @@ test("a visible camera has a compact edit control over its picture", () => {
   }, option: {}, image_entities: ["camera.front"], groups: [], group_by: "area" });
   card.hass = { user: { is_admin: true } };
   assert.match(card.innerHTML, /class="camera-edit"/);
+  assert.match(card.innerHTML, /<span class="camera-name">Front camera<\/span>/);
   assert.match(card.innerHTML, /class="camera-expand"/);
   assert.match(card.innerHTML, /camera-view:hover \.camera-expand/);
   assert.match(card.innerHTML, /mdi:pencil/);
@@ -473,6 +476,7 @@ test("camera viewer loads the selected stream only while open, including for vie
     card.hass = { user: { is_admin: false } };
     await card._picturePromise;
     assert.equal(created.length, 1);
+    assert.equal(created[0].show_name, false);
     assert.doesNotMatch(card.innerHTML, /class="camera-edit"/);
     assert.match(card.innerHTML, /class="camera-view"/);
     card._click({ target: { closest: () => ({ dataset: { action: "view" } }) } });

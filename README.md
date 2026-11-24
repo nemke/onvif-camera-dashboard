@@ -12,11 +12,11 @@ A Home Assistant dashboard plugin that adds every **configured, enabled ONVIF ca
 
 - Responsive camera columns using native Sections views and `picture-entity` camera cards. Each tab defaults to two columns on wide screens and one on narrow screens.
 - Tap a visible feed to open a nearly full-screen live viewer on desktop or a full-screen viewer on mobile. The viewer preserves the stream's aspect ratio, including 4:3 feeds. It loads the selected stream on opening and removes its live card on closing. Use the close button or Escape to return to the same tab.
-- Camera tiles show an unavailable or missing-source message when Home Assistant reports a problem, and detect broken previews even when the camera entity remains available. Preview failures offer Retry. A subtle expand icon appears on hover, keyboard focus, and touch screens.
+- Camera tiles keep a compact name label visible. They show an unavailable or missing-source message when Home Assistant reports a problem, and detect broken previews even when the camera entity remains available. Preview failures offer Retry. A subtle expand icon appears on hover, keyboard focus, and touch screens.
 - Swipe left or right on a camera tab to switch between camera categories. In the full-screen viewer, swipe between cameras in the current category, or use the previous/next buttons. Two-finger zoom remains available in the viewer. Swipes stop at the first and last camera or category.
 - Area, floor, or custom category tabs with editable names and a searchable Home Assistant icon picker.
 - A visual camera order list with Move earlier/later controls, plus display name, image entity, and visibility controls. Successful camera edits show a short confirmation.
-- An admin-only 44 px edit button at the top right of each feed. Camera settings open in a dialog, with common choices first and advanced choices tucked away. Saving refreshes the dashboard without reloading the browser page.
+- An admin-only 44 px edit button at the top right of each feed. It appears on hover or keyboard focus on desktops and stays visible on touch screens. Camera settings open in a dialog, with common choices first and advanced choices tucked away. Saving refreshes the dashboard without reloading the browser page.
 - An admin-only **Hidden** tab for restoring hidden cameras without showing them among live feeds. Hidden and Settings show text labels alongside their icons.
 - An **Unassigned** tab for cameras without a category.
 - An administrator **Settings** tab for managing tabs, with unused areas or floors folded away, a sticky Save control, a retry button after settings load failures, and an optional importer for an existing dashboard.
@@ -49,7 +49,7 @@ If you cannot use Marketplace, build and install the plugin directly:
 
 1. Run `npm run build` in this repository. No dependencies need installing.
 2. Copy **both** files from `dist/` into `/config/www/community/onvif-camera-dashboard/` on Home Assistant.
-3. Add `/local/community/onvif-camera-dashboard/onvif-camera-dashboard.js?v=0.1.13` as a JavaScript module under **Settings → Dashboards → Resources**.
+3. Add `/local/community/onvif-camera-dashboard/onvif-camera-dashboard.js?v=0.1.14` as a JavaScript module under **Settings → Dashboards → Resources**.
 4. Reload Home Assistant in the browser. Change the URL version when installing a newer build.
 
 Marketplace installs register the resource automatically; keep only one resource entry for this plugin.
