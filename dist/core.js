@@ -23,6 +23,13 @@ export function getAreaId(entry, hass) {
   return entry.area_id || hass.devices?.[entry.device_id]?.area_id || null;
 }
 
+export function isNewUnassignedCamera(config, entry) {
+  return config.group_by !== "custom"
+    && Array.isArray(config.inbox_existing_camera_keys)
+    && !config.inbox_existing_camera_keys.includes(cameraKey(entry))
+    && cameraOption(config, entry).category === undefined;
+}
+
 export function groupForCamera(entry, config, hass) {
   const option = cameraOption(config, entry);
   if (option.category !== undefined) {
@@ -34,6 +41,7 @@ export function groupForCamera(entry, config, hass) {
           : option.category.startsWith("area:") && Boolean(hass.areas?.[option.category.slice(5)]));
     if (valid) return option.category;
   }
+  if (isNewUnassignedCamera(config, entry)) return UNASSIGNED;
   const areaId = getAreaId(entry, hass);
   if (config.group_by === "floor") {
     const floorId = areaId && hass.areas?.[areaId]?.floor_id;
@@ -126,6 +134,7 @@ export function generateDashboard(config, hass, entries) {
       camera,
       camera_key: cameraKey(entry),
       option,
+      new_unassigned: isNewUnassignedCamera(config, entry),
       groups: categoryChoices,
       image_entities: imageEntities,
       group_by: config.group_by || "area",

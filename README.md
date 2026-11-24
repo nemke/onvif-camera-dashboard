@@ -19,6 +19,7 @@ A Home Assistant dashboard plugin that adds every **configured, enabled ONVIF ca
 - An admin-only 44 px edit button at the top right of each feed. It appears on hover or keyboard focus on desktops and stays visible on touch screens. Camera settings open in a dialog, with common choices first and advanced choices tucked away. Saving refreshes the dashboard without reloading the browser page.
 - An admin-only **Hidden** tab for restoring hidden cameras without showing them among live feeds. Hidden and Settings show text labels alongside their icons.
 - An **Unassigned** tab for cameras without a category.
+- An optional inbox setting that puts ONVIF cameras added later into Unassigned until you place them, while keeping existing cameras in their current tabs.
 - An administrator **Settings** tab for managing tabs, with unused areas or floors folded away, a sticky Save control, a retry button after settings load failures, and an optional importer for an existing dashboard.
 - Multiple ONVIF profiles stay separate. A card can use a different camera entity as its image or stream source.
 
@@ -41,7 +42,7 @@ strategy:
   group_by: area
 ```
 
-Open its **Settings** tab to set up the tabs and their maximum **Camera columns**. Home Assistant reduces the number of columns on narrower screens. Swipe between camera tabs, or tap a feed to see it larger and swipe among the cameras in that tab. The Settings and Hidden tabs stay outside the swipe sequence. Use the pencil icon to change a camera's name, tab, image entity, order, view, or visibility. Hidden cameras appear only in the administrator **Hidden** tab, where you can edit them to show them again. To migrate an existing dashboard, expand **Import tabs from an existing dashboard**, choose the source, select **Import into draft**, review the tabs, then select **Save dashboard**. Import reads the source dashboard and updates only the new dashboard when saved.
+Open its **Settings** tab to set up the tabs and their maximum **Camera columns**. Home Assistant reduces the number of columns on narrower screens. To route future ONVIF cameras to Unassigned first, select **Put newly added ONVIF cameras in Unassigned** and save. Swipe between camera tabs, or tap a feed to see it larger and swipe among the cameras in that tab. The Settings and Hidden tabs stay outside the swipe sequence. Use the pencil icon to change a camera's name, tab, image entity, order, view, or visibility. Hidden cameras appear only in the administrator **Hidden** tab, where you can edit them to show them again. To migrate an existing dashboard, expand **Import tabs from an existing dashboard**, choose the source, select **Import into draft**, review the tabs, then select **Save dashboard**. Import reads the source dashboard and updates only the new dashboard when saved.
 
 ## Manual installation
 
@@ -49,7 +50,7 @@ If you cannot use Marketplace, build and install the plugin directly:
 
 1. Run `npm run build` in this repository. No dependencies need installing.
 2. Copy **both** files from `dist/` into `/config/www/community/onvif-camera-dashboard/` on Home Assistant.
-3. Add `/local/community/onvif-camera-dashboard/onvif-camera-dashboard.js?v=0.1.14` as a JavaScript module under **Settings → Dashboards → Resources**.
+3. Add `/local/community/onvif-camera-dashboard/onvif-camera-dashboard.js?v=0.1.15` as a JavaScript module under **Settings → Dashboards → Resources**.
 4. Reload Home Assistant in the browser. Change the URL version when installing a newer build.
 
 Marketplace installs register the resource automatically; keep only one resource entry for this plugin.

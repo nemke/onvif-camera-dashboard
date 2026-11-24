@@ -56,6 +56,22 @@ test("a newly registered ONVIF camera appears without editing the dashboard conf
   assert.equal(after.views[0].sections.length, 2);
 });
 
+test("new ONVIF cameras wait in Unassigned after existing cameras are recorded", () => {
+  const config = {
+    group_by: "area", inbox_existing_camera_keys: [cameraKey(entries[0])],
+  };
+  const dashboard = generateDashboard(config, hass, entries.slice(0, 2));
+  assert.deepEqual(dashboard.views.map((view) => view.title), ["Front Yard", "Unassigned", "Settings"]);
+  assert.equal(dashboard.views[0].sections[0].cards[0].camera.entity, entries[0].entity_id);
+  assert.equal(dashboard.views[1].sections[0].cards[0].camera.entity, entries[1].entity_id);
+  assert.equal(dashboard.views[1].sections[0].cards[0].new_unassigned, true);
+
+  config.camera_options = { [cameraKey(entries[1])]: { category: "" } };
+  const accepted = generateDashboard(config, hass, entries.slice(0, 2));
+  assert.deepEqual(accepted.views.map((view) => view.title), ["Front Yard", "Settings"]);
+  assert.equal(accepted.views[0].sections.length, 2);
+});
+
 test("camera columns control the maximum number of responsive sections", () => {
   const config = { group_by: "area", group_options: { "area:front": { max_columns: 1 } } };
   const one = generateDashboard(config, hass, entries.slice(0, 2));

@@ -69,6 +69,30 @@ test("manager loads dashboard settings when hass arrives after connection", asyn
   assert.doesNotMatch(manager.innerHTML, /<label>Camera view/);
 });
 
+test("enabling the new-camera inbox records current ONVIF cameras", () => {
+  const Manager = elements.get("onvif-camera-dashboard-manager");
+  const manager = new Manager();
+  manager._ready = true;
+  manager._hass = hass;
+  manager._entries = entries;
+  manager.render();
+  manager._loading = true;
+  manager._change({ target: {
+    dataset: { field: "inbox_new_cameras" }, type: "checkbox", checked: true,
+  } });
+  assert.equal(manager._config.inbox_existing_camera_keys, undefined);
+  manager._loading = false;
+  manager._change({ target: {
+    dataset: { field: "inbox_new_cameras" }, type: "checkbox", checked: true,
+  } });
+  assert.deepEqual(manager._config.inbox_existing_camera_keys, ["onvif:front"]);
+  assert.match(manager.innerHTML, /data-field="inbox_new_cameras"\s+checked/);
+  manager._change({ target: {
+    dataset: { field: "inbox_new_cameras" }, type: "checkbox", checked: false,
+  } });
+  assert.equal(manager._config.inbox_existing_camera_keys, undefined);
+});
+
 test("manager retries dashboard settings after an initial load failure", async () => {
   const Manager = elements.get("onvif-camera-dashboard-manager");
   const manager = new Manager();
@@ -263,12 +287,13 @@ test("camera editor uses a modal with common and advanced settings", () => {
   card._mountPicture = () => {};
   card.setConfig({ camera_key: "onvif:front", camera: {
     entity: "camera.front", name: "Front camera", camera_image: "camera.front",
-  }, option: {}, image_entities: ["camera.front"], groups: [], group_by: "area" });
+  }, option: {}, new_unassigned: true, image_entities: ["camera.front"], groups: [], group_by: "area" });
   card.hass = { user: { is_admin: true } };
   card._click({ target: { closest: () => ({ dataset: { action: "edit" } }) } });
   assert.equal(opened, true);
   assert.match(card.innerHTML, /<dialog class="camera-dialog"/);
   assert.match(card.innerHTML, /<details class="camera-advanced">/);
+  assert.match(card.innerHTML, /<option value="__unassigned" selected>Unassigned<\/option>/);
   assert.ok(card.innerHTML.indexOf("Display name") < card.innerHTML.indexOf("Advanced settings"));
   card._closeEditor();
   assert.equal(card._open, false);

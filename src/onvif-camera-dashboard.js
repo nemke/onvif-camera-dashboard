@@ -1,4 +1,4 @@
-import { STRATEGY_TYPE, UNASSIGNED, cameraOption, eligibleCameras, generateDashboard, groupsFor, importDashboard } from "./core.js";
+import { STRATEGY_TYPE, UNASSIGNED, cameraKey, cameraOption, eligibleCameras, generateDashboard, groupsFor, importDashboard } from "./core.js";
 
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -296,6 +296,14 @@ class CameraDashboardEditor extends HTMLElement {
       this._setConfig({ ...this._config, [field]: value });
       return;
     }
+    if (field === "inbox_new_cameras") {
+      if (value && (!this._hass || this._loading || this._error)) return;
+      const config = { ...this._config };
+      if (value) config.inbox_existing_camera_keys = [...new Set(this._entries.map(cameraKey))];
+      else delete config.inbox_existing_camera_keys;
+      this._setConfig(config);
+      return;
+    }
     const groupId = event.target.dataset.groupId;
     if (groupId) {
       const adjusted = field === "max_columns" ? Number(value) : value;
@@ -417,6 +425,11 @@ class CameraDashboardEditor extends HTMLElement {
             .map(([value, title]) => `<option value="${value}" ${this._config.group_by === value ? "selected" : ""}>${title}</option>`).join("")}
         </select></label>
       </div>
+      ${custom ? "" : `<label class="check"><input type="checkbox" data-field="inbox_new_cameras"
+        ${Array.isArray(this._config.inbox_existing_camera_keys) ? "checked" : ""}
+        ${!this._hass || this._loading || this._error ? "disabled" : ""}>
+        Put newly added ONVIF cameras in Unassigned</label>
+        <p class="hint">Cameras already on this dashboard keep their tabs. Later cameras wait in Unassigned until you choose a category.</p>`}
       <h3>Tabs</h3>${this._groupRows()}
       ${custom ? `<button data-action="add-category">Add tab</button>` : ""}
       ${this._mode === "manage" ? `
@@ -761,6 +774,7 @@ class CameraDashboardCameraCard extends HTMLElement {
   render() {
     if (!this.isConnected || !this._config) return;
     const option = this._draft || this._config.option || {};
+    const selectedCategory = option.category ?? (this._config.new_unassigned ? UNASSIGNED : "");
     const image = option.image_entity || this._config.camera.camera_image;
     const imageChoices = [...new Set([...this._config.image_entities, image])];
     const previewStatus = this._config.option?.hidden ? null : this._previewStatus();
@@ -904,9 +918,9 @@ class CameraDashboardCameraCard extends HTMLElement {
       <form data-camera-editor>
         <div class="camera-fields">
           <label>Category<select name="category">
-            <option value="" ${!option.category ? "selected" : ""}>${this._config.group_by === "custom" ? "Unassigned" : "Automatic"}</option>
-            ${this._config.groups.map((group) => `<option value="${esc(group.id)}" ${option.category === group.id ? "selected" : ""}>${esc(group.title)}</option>`).join("")}
-            <option value="${UNASSIGNED}" ${option.category === UNASSIGNED ? "selected" : ""}>Unassigned</option>
+            <option value="" ${selectedCategory === "" ? "selected" : ""}>${this._config.group_by === "custom" ? "Unassigned" : "Automatic"}</option>
+            ${this._config.groups.map((group) => `<option value="${esc(group.id)}" ${selectedCategory === group.id ? "selected" : ""}>${esc(group.title)}</option>`).join("")}
+            <option value="${UNASSIGNED}" ${selectedCategory === UNASSIGNED ? "selected" : ""}>Unassigned</option>
           </select></label>
           <label>Display name<input name="name" value="${esc(option.name || "")}" placeholder="${esc(this._config.camera.name)}"></label>
           <label class="check"><input name="hidden" type="checkbox" ${option.hidden ? "checked" : ""}> Hide camera</label>
