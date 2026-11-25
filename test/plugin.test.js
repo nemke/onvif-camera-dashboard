@@ -169,6 +169,7 @@ test("tab rows expand one at a time and show movement limits", async () => {
   assert.doesNotMatch(manager.innerHTML, /data-field="title"/);
   await manager._click({ target: { dataset: { action: "edit-tab", groupId: "custom:front" } } });
   assert.match(manager.innerHTML, /data-field="title" data-group-id="custom:front"/);
+  assert.match(manager.innerHTML, /<span class="field-label">Name<\/span>/);
   assert.doesNotMatch(manager.innerHTML, /data-field="title" data-group-id="custom:back"/);
   assert.match(manager.innerHTML, /data-offset="-1" disabled/);
   assert.match(manager.innerHTML, /data-offset="1" ><ha-icon icon="mdi:arrow-down"[^>]*><\/ha-icon>Move down/);
@@ -365,6 +366,9 @@ test("camera editor uses a modal with common and advanced settings", () => {
   assert.equal(opened, true);
   assert.match(card.innerHTML, /<dialog class="camera-dialog"/);
   assert.match(card.innerHTML, /<details class="camera-advanced">/);
+  assert.match(card.innerHTML, /class="primary icon-button"[^>]*><ha-icon icon="mdi:content-save-outline"/);
+  const actions = card.innerHTML.slice(card.innerHTML.indexOf('<div class="camera-actions">'));
+  assert.ok(actions.indexOf('data-action="cancel"') < actions.indexOf('type="submit" class="primary icon-button"'));
   assert.match(card.innerHTML, /<option value="__unassigned" selected>Unassigned<\/option>/);
   assert.ok(card.innerHTML.indexOf("Display name") < card.innerHTML.indexOf("Advanced settings"));
   card._closeEditor();

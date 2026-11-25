@@ -7,6 +7,8 @@ const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
 const styles = `
   <style>
     :host { display:block; color:var(--primary-text-color); font:inherit; }
+    onvif-camera-dashboard-manager { display:block; box-sizing:border-box;
+      padding:24px 16px 32px; }
     .panel { box-sizing:border-box; width:min(100%,820px); margin:0 auto; padding:20px;
       container-type:inline-size;
       background:var(--ha-card-background,var(--card-background-color,#fff));
@@ -43,10 +45,13 @@ const styles = `
     .tab-summary button[aria-expanded="true"] { background:color-mix(in srgb,var(--primary-color,#03a9f4) 10%,var(--card-background-color,#fff)); }
     .tab-editor { border-top:1px solid var(--divider-color,#ddd); padding:14px 12px; }
     .tab-fields { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) 145px;
-      gap:12px; align-items:end; }
+      gap:12px; align-items:start; }
     .tab-fields label, .tab-fields .icon-field { min-width:0; width:100%; }
-    .tab-fields label input { width:100%; }
+    .tab-fields .field-label { min-height:36px; line-height:18px; }
+    .tab-fields label input { width:100%; height:56px; }
     .icon-field { display:flex; flex-direction:column; gap:4px; font-size:.87rem; }
+    .icon-field .field-label { display:flex; align-items:flex-start; gap:4px; }
+    .icon-field .field-label ha-icon { width:18px; height:18px; --mdc-icon-size:18px; }
     .icon-field ha-selector { display:block; width:100%; }
     .icon-field .hint { margin:4px 0; }
     .tab-help { font-size:.82rem; margin:8px 0 0; }
@@ -74,6 +79,8 @@ const styles = `
     .success { color:var(--success-color,#2e7d32); }
     @container (max-width:640px) {
       .tab-fields { grid-template-columns:minmax(0,1fr); }
+      .tab-fields .field-label { min-height:0; }
+      .tab-fields label input { height:44px; }
       .tab-summary { flex-wrap:wrap; gap:8px; }
       .tab-summary button { margin-left:auto; }
       .tab-actions .remove-tab { margin-left:0; }
@@ -82,6 +89,7 @@ const styles = `
       .tab-summary .tab-meta { order:3; width:calc(100% - 32px); margin-left:32px; }
     }
     @media (max-width:600px) {
+      onvif-camera-dashboard-manager { padding:12px 8px 24px; }
       .panel { padding:14px; }
     }
   </style>`;
@@ -462,19 +470,19 @@ class CameraDashboardEditor extends HTMLElement {
         </div>
         ${expanded ? `<div class="tab-editor">
           <div class="tab-fields">
-            <label>Name<input data-field="title" data-group-id="${esc(group.id)}" value="${esc(group.title)}"></label>
-            <div class="icon-field"><span>Icon <ha-icon icon="${esc(icon)}" data-icon-preview="${esc(group.id)}" aria-hidden="true"></ha-icon></span>
+            <label><span class="field-label">Name</span><input data-field="title" data-group-id="${esc(group.id)}" value="${esc(group.title)}"></label>
+            <div class="icon-field"><span class="field-label">Icon <ha-icon icon="${esc(icon)}" data-icon-preview="${esc(group.id)}" aria-hidden="true"></ha-icon></span>
               ${this._iconPickerReady && this._hass
                 ? `<ha-selector data-group-id="${esc(group.id)}" data-icon="${esc(group.icon)}"></ha-selector>`
                 : `<span class="hint">${this._iconPickerError ? "Icon picker unavailable" : "Loading icons…"}</span>`}</div>
-            <label>Maximum columns on wide screens<input type="number" min="1" max="4" data-field="max_columns"
+            <label><span class="field-label">Maximum columns on wide screens</span><input type="number" min="1" max="4" data-field="max_columns"
               data-group-id="${esc(group.id)}" value="${esc(columns)}"></label>
           </div>
           <p class="hint tab-help">Narrow screens use fewer columns automatically.</p>
           ${editable ? `<div class="tab-actions">
             <button type="button" class="icon-button" data-action="move-category" data-group-id="${esc(group.id)}" data-offset="-1" ${index === 0 ? "disabled" : ""}><ha-icon icon="mdi:arrow-up" aria-hidden="true"></ha-icon>Move up</button>
             <button type="button" class="icon-button" data-action="move-category" data-group-id="${esc(group.id)}" data-offset="1" ${index === groups.length - 1 ? "disabled" : ""}><ha-icon icon="mdi:arrow-down" aria-hidden="true"></ha-icon>Move down</button>
-            <button type="button" class="icon-button danger remove-tab" data-action="remove-category" data-group-id="${esc(group.id)}"><ha-icon icon="mdi:delete-outline" aria-hidden="true"></ha-icon>Remove tab…</button>
+            <button type="button" class="icon-button danger remove-tab" data-action="remove-category" data-group-id="${esc(group.id)}"><ha-icon icon="mdi:delete-outline" aria-hidden="true"></ha-icon>Remove tab</button>
           </div>${this._pendingRemoveId === group.id ? `<div class="remove-confirm" role="alert">
             <p>Remove ${esc(group.title)}? Cameras assigned to this tab will move to Unassigned.</p>
             <button type="button" class="icon-button danger" data-action="confirm-remove" data-group-id="${esc(group.id)}"><ha-icon icon="mdi:delete-outline" aria-hidden="true"></ha-icon>Remove tab</button>
@@ -950,6 +958,10 @@ class CameraDashboardCameraCard extends HTMLElement {
       onvif-camera-dashboard-camera-card .camera-dialog button { font:inherit; cursor:pointer; border:0;
         border-radius:8px; min-height:44px; padding:8px 12px;
         color:var(--primary-text-color); background:var(--secondary-background-color,#eee); }
+      onvif-camera-dashboard-camera-card .camera-dialog button.icon-button { display:inline-flex;
+        align-items:center; justify-content:center; gap:8px; }
+      onvif-camera-dashboard-camera-card .camera-dialog button.icon-button ha-icon {
+        width:18px; height:18px; --mdc-icon-size:18px; color:inherit; }
       onvif-camera-dashboard-camera-card button:disabled { opacity:.5; cursor:default; }
       onvif-camera-dashboard-camera-card button.primary { color:#fff; background:#005b83;
         background:color-mix(in srgb,var(--primary-color,#03a9f4) 45%,black); }
@@ -960,7 +972,7 @@ class CameraDashboardCameraCard extends HTMLElement {
       onvif-camera-dashboard-camera-card .camera-dialog::backdrop { background:rgba(0,0,0,.65); }
       onvif-camera-dashboard-camera-card .camera-dialog header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
       onvif-camera-dashboard-camera-card .camera-dialog h3 { margin:0; font-size:1.15rem; }
-      onvif-camera-dashboard-camera-card .camera-dialog .close { min-width:44px; padding:0; font-size:1.5rem; }
+      onvif-camera-dashboard-camera-card .camera-dialog .close { width:44px; padding:0; }
       onvif-camera-dashboard-camera-card .camera-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:10px; }
       onvif-camera-dashboard-camera-card .camera-fields label { display:flex; flex-direction:column; gap:4px; font-size:.87rem; }
       onvif-camera-dashboard-camera-card .camera-fields label.check { grid-column:1/-1; flex-direction:row; align-items:center; }
@@ -972,6 +984,8 @@ class CameraDashboardCameraCard extends HTMLElement {
         background:var(--secondary-background-color,#444); font-weight:600; }
       onvif-camera-dashboard-camera-card .camera-reorder-actions { display:flex; flex-wrap:wrap;
         align-items:center; gap:8px; }
+      onvif-camera-dashboard-camera-card .camera-reorder-actions button:not(:disabled) ha-icon {
+        color:var(--primary-color,#03a9f4); }
       onvif-camera-dashboard-camera-card .camera-reorder-hint { color:var(--secondary-text-color,#aaa); }
       onvif-camera-dashboard-camera-card .camera-fields input:not([type=checkbox]),
       onvif-camera-dashboard-camera-card .camera-fields select { box-sizing:border-box; width:100%;
@@ -980,7 +994,9 @@ class CameraDashboardCameraCard extends HTMLElement {
         border:1px solid var(--divider-color,#aaa); }
       onvif-camera-dashboard-camera-card .camera-advanced { margin-top:16px; }
       onvif-camera-dashboard-camera-card .camera-advanced summary { cursor:pointer; padding:8px 0; }
-      onvif-camera-dashboard-camera-card .camera-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:20px; }
+      onvif-camera-dashboard-camera-card .camera-actions { display:flex; justify-content:flex-end;
+        align-items:center; flex-wrap:wrap; gap:8px; margin-top:24px; padding-top:16px;
+        border-top:1px solid var(--divider-color,#555); }
       onvif-camera-dashboard-camera-card .camera-error { color:var(--error-color,#d32f2f); margin:8px 0; }
     </style>
     <div class="camera-shell${this._config.option?.hidden ? " is-hidden" : ""}">
@@ -1008,7 +1024,7 @@ class CameraDashboardCameraCard extends HTMLElement {
     </dialog>` : ""}
     ${this._open && this._hass?.user?.is_admin ? `<dialog class="camera-dialog" aria-labelledby="camera-dialog-title">
       <header><h3 id="camera-dialog-title">Edit ${esc(this._config.camera.name)}</h3>
-        <button type="button" class="close" data-action="cancel" aria-label="Close camera editor">×</button></header>
+        <button type="button" class="close icon-button" data-action="cancel" aria-label="Close camera editor"><ha-icon icon="mdi:close" aria-hidden="true"></ha-icon></button></header>
       <form data-camera-editor>
         <div class="camera-fields">
           <label>Category<select name="category">
@@ -1023,8 +1039,8 @@ class CameraDashboardCameraCard extends HTMLElement {
           <div class="camera-reorder"><h4>Position in this tab</h4>
             <ol>${this._orderListMarkup()}</ol>
             <div class="camera-reorder-actions">
-              <button type="button" data-action="move-earlier">Move earlier</button>
-              <button type="button" data-action="move-later">Move later</button>
+              <button type="button" class="icon-button" data-action="move-earlier"><ha-icon icon="mdi:arrow-up" aria-hidden="true"></ha-icon>Move earlier</button>
+              <button type="button" class="icon-button" data-action="move-later"><ha-icon icon="mdi:arrow-down" aria-hidden="true"></ha-icon>Move later</button>
               <span class="camera-reorder-hint"></span>
             </div>
           </div>` : ""}
@@ -1040,8 +1056,8 @@ class CameraDashboardCameraCard extends HTMLElement {
           </select></label>
         </div></details>
         <p class="camera-error" role="alert" ${this._error ? "" : "hidden"}>${esc(this._error || "")}</p>
-        <div class="camera-actions"><button type="submit" class="primary" ${this._saving ? "disabled" : ""}>${this._saving ? "Saving…" : "Save camera"}</button>
-          <button type="button" data-action="cancel" ${this._saving ? "disabled" : ""}>Cancel</button></div>
+        <div class="camera-actions"><button type="button" class="icon-button" data-action="cancel" ${this._saving ? "disabled" : ""}><ha-icon icon="mdi:close" aria-hidden="true"></ha-icon>Cancel</button>
+          <button type="submit" class="primary icon-button" ${this._saving ? "disabled" : ""}><ha-icon icon="mdi:content-save-outline" aria-hidden="true"></ha-icon><span class="button-label">${this._saving ? "Saving…" : "Save camera"}</span></button></div>
       </form>
     </dialog>` : ""}`;
     const form = this.querySelector("form[data-camera-editor]");
@@ -1154,7 +1170,12 @@ class CameraDashboardCameraCard extends HTMLElement {
     this._draft = { ...this._config.option, ...patch };
     this._saving = true;
     const submit = this.querySelector(".camera-actions button[type=submit]");
-    if (submit) { submit.disabled = true; submit.textContent = "Saving…"; }
+    if (submit) {
+      submit.disabled = true;
+      const label = submit.querySelector?.(".button-label");
+      if (label) label.textContent = "Saving…";
+      else submit.textContent = "Saving…";
+    }
     for (const button of this.querySelectorAll?.(".camera-dialog button[data-action]") || []) {
       button.disabled = true;
     }
@@ -1181,7 +1202,12 @@ class CameraDashboardCameraCard extends HTMLElement {
       this._saving = false;
       const message = this.querySelector(".camera-dialog .camera-error");
       if (message) { message.textContent = this._error; message.hidden = false; }
-      if (submit) { submit.disabled = false; submit.textContent = "Save camera"; }
+      if (submit) {
+        submit.disabled = false;
+        const label = submit.querySelector?.(".button-label");
+        if (label) label.textContent = "Save camera";
+        else submit.textContent = "Save camera";
+      }
       for (const button of this.querySelectorAll?.(".camera-dialog button[data-action]") || []) {
         button.disabled = false;
       }

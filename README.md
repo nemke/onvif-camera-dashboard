@@ -50,7 +50,7 @@ If you cannot use Marketplace, build and install the plugin directly:
 
 1. Run `npm run build` in this repository. No dependencies need installing.
 2. Copy **both** files from `dist/` into `/config/www/community/onvif-camera-dashboard/` on Home Assistant.
-3. Add `/local/community/onvif-camera-dashboard/onvif-camera-dashboard.js?v=0.1.19` as a JavaScript module under **Settings → Dashboards → Resources**.
+3. Add `/local/community/onvif-camera-dashboard/onvif-camera-dashboard.js?v=0.1.20` as a JavaScript module under **Settings → Dashboards → Resources**.
 4. Reload Home Assistant in the browser. Change the URL version when installing a newer build.
 
 Marketplace installs register the resource automatically; keep only one resource entry for this plugin.
