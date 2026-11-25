@@ -49,6 +49,8 @@ test("plugin registers a community dashboard strategy and generates an admin man
   const Strategy = elements.get("ll-strategy-dashboard-onvif-camera-dashboard");
   const output = await Strategy.generate({ group_by: "area" }, hass);
   assert.deepEqual(output.views.map((view) => view.title), ["Front Yard", "Settings"]);
+  assert.equal(output.views.at(-1).type, "panel");
+  assert.equal(output.views.at(-1).cards[0].type, "custom:onvif-camera-dashboard-manager");
 });
 
 test("manager loads dashboard settings when hass arrives after connection", async () => {
@@ -62,7 +64,10 @@ test("manager loads dashboard settings when hass arrives after connection", asyn
   assert.equal(manager._config.group_by, "area");
   assert.match(manager.innerHTML, /Front Yard/);
   assert.match(manager.innerHTML, /Dashboard tabs/);
-  assert.match(manager.innerHTML, /Camera columns/);
+  assert.match(manager.innerHTML, /Up to 2 columns/);
+  manager._expandedGroupId = "area:front";
+  manager.render();
+  assert.match(manager.innerHTML, /Maximum columns on wide screens/);
   assert.match(manager.innerHTML, /<ha-selector data-group-id="area:front"/);
   assert.doesNotMatch(manager.innerHTML, /<label>Icon<input/);
   assert.doesNotMatch(manager.innerHTML, /<h3>Cameras/);
@@ -149,18 +154,59 @@ test("settings separates the built-in Unassigned tab from custom tabs", () => {
   assert.doesNotMatch(manager.innerHTML.slice(unassigned), /data-action="remove-category"/);
 });
 
+test("tab rows expand one at a time and show movement limits", async () => {
+  const Manager = elements.get("onvif-camera-dashboard-manager");
+  const manager = new Manager();
+  manager._ready = true;
+  manager._hass = hass;
+  manager._config = { type: "custom:onvif-camera-dashboard", group_by: "custom", categories: [
+    { id: "custom:front", title: "Front Yard", icon: "mdi:gate", max_columns: 4 },
+    { id: "custom:back", title: "Back Yard", icon: "mdi:tree", max_columns: 2 },
+  ] };
+  manager.render();
+  assert.doesNotMatch(manager.innerHTML, /data-field="title"/);
+  await manager._click({ target: { dataset: { action: "edit-tab", groupId: "custom:front" } } });
+  assert.match(manager.innerHTML, /data-field="title" data-group-id="custom:front"/);
+  assert.doesNotMatch(manager.innerHTML, /data-field="title" data-group-id="custom:back"/);
+  assert.match(manager.innerHTML, /data-offset="-1" disabled/);
+  assert.match(manager.innerHTML, /data-offset="1" >Move down/);
+  assert.match(manager.innerHTML, /<ha-icon icon="mdi:gate"/);
+});
+
+test("removing a tab confirms its cameras move to Unassigned", async () => {
+  const Manager = elements.get("onvif-camera-dashboard-manager");
+  const manager = new Manager();
+  manager._ready = true;
+  manager._hass = hass;
+  manager._config = { type: "custom:onvif-camera-dashboard", group_by: "custom",
+    categories: [{ id: "custom:front", title: "Front Yard" }],
+    camera_options: { "onvif:front": { category: "custom:front" } } };
+  manager._expandedGroupId = "custom:front";
+  manager.render();
+  await manager._click({ target: { dataset: { action: "remove-category", groupId: "custom:front" } } });
+  assert.equal(manager._config.categories.length, 1);
+  assert.match(manager.innerHTML, /Cameras assigned to this tab will move to Unassigned/);
+  await manager._click({ target: { dataset: { action: "confirm-remove", groupId: "custom:front" } } });
+  assert.equal(manager._config.categories.length, 0);
+  assert.equal(manager._config.camera_options["onvif:front"].category, "__unassigned");
+});
+
 test("editing a tab name keeps the save control mounted", () => {
   const Manager = elements.get("onvif-camera-dashboard-manager");
   const manager = new Manager();
   manager._mode = "manage";
   const status = { textContent: "", className: "" };
-  manager.querySelector = (selector) => selector === ".actions [role=status]" ? status : null;
+  const save = { disabled: true };
+  manager.querySelector = (selector) => selector === ".actions [role=status]" ? status
+    : selector === '.actions [data-action="save"]' ? save : null;
   manager.render = () => { throw new Error("Changing a name must not replace the save button"); };
   manager._change({ target: {
     dataset: { field: "title", groupId: "area:front" }, value: "Front entrance",
   } });
   assert.equal(manager._config.group_options["area:front"].title, "Front entrance");
+  assert.equal(manager._dirty, true);
   assert.equal(status.textContent, "Unsaved changes");
+  assert.equal(save.disabled, false);
 });
 
 test("tab icon choice updates the selected tab", () => {
@@ -174,12 +220,15 @@ test("tab icon choice updates the selected tab", () => {
     dataset: { groupId: "area:front", icon: "mdi:gate" },
     addEventListener(type, handler) { if (type === "value-changed") this.onChange = handler; },
   };
-  manager.querySelectorAll = () => [picker];
+  const preview = { dataset: { iconPreview: "area:front" },
+    setAttribute(name, value) { this[name] = value; } };
+  manager.querySelectorAll = (selector) => selector === "[data-icon-preview]" ? [preview] : [picker];
   manager.render();
   assert.deepEqual(picker.selector, { icon: {} });
   assert.equal(picker.value, "mdi:gate");
   picker.onChange({ detail: { value: "mdi:cctv" }, stopPropagation() {} });
   assert.equal(manager._config.group_options["area:front"].icon, "mdi:cctv");
+  assert.equal(preview.icon, "mdi:cctv");
   assert.equal(manager._status, "Unsaved changes");
 });
 
@@ -204,11 +253,13 @@ test("manager saves only the current strategy dashboard", async () => {
   };
   await manager._setupPromise;
   manager._config = { ...manager._config, group_by: "floor" };
+  manager._dirty = true;
   await manager._save();
   const save = requests.find((request) => request.type === "lovelace/config/save");
   assert.equal(save.url_path, "camera-dashboard");
   assert.equal(save.config.background, "original");
   assert.equal(save.config.strategy.group_by, "floor");
+  assert.equal(manager._dirty, false);
 });
 
 test("a camera tile saves only its own settings", async () => {

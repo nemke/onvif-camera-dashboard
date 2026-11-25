@@ -187,10 +187,9 @@ export function generateDashboard(config, hass, entries) {
       });
     }
     views.push({
-      title: "Settings", path: "manage", icon: "mdi:cog", type: "sections", max_columns: 1,
+      title: "Settings", path: "manage", icon: "mdi:cog", type: "panel",
       show_icon_and_title: true,
-      sections: [{ type: "grid", cards: [{ type: "custom:onvif-camera-dashboard-manager" }] }],
-      cards: [],
+      cards: [{ type: "custom:onvif-camera-dashboard-manager" }],
     });
   }
   return { title: "ONVIF Cameras", views };

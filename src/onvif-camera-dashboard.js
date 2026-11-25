@@ -7,7 +7,7 @@ const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
 const styles = `
   <style>
     :host { display:block; color:var(--primary-text-color); font:inherit; }
-    .panel { box-sizing:border-box; width:min(100%,900px); margin:0 auto; padding:20px;
+    .panel { box-sizing:border-box; width:min(100%,820px); margin:0 auto; padding:20px;
       container-type:inline-size;
       background:var(--ha-card-background,var(--card-background-color,#fff));
       border:1px solid var(--divider-color,#ddd); border-radius:12px; }
@@ -26,20 +26,29 @@ const styles = `
       background:color-mix(in srgb,var(--primary-color,#03a9f4) 45%,black);
       border-color:transparent; color:#fff; }
     button:disabled { opacity:.5; cursor:default; }
-    .item { padding:10px; margin:6px 0; border:1px solid var(--divider-color,#ddd); border-radius:8px; }
-    .tab-row { display:grid; grid-template-columns:minmax(0,2fr) minmax(160px,1fr) 90px;
-      align-items:end; gap:10px; margin:0; }
-    .tab-row.with-actions { grid-template-columns:minmax(0,2fr) minmax(160px,1fr) 90px auto; }
-    .tab-row label, .tab-row .icon-select { min-width:0; width:100%; }
-    .tab-row label input { width:100%; }
-    .tab-row .tab-actions { display:flex; gap:6px; }
-    .tab-row .tab-actions button { padding:7px 9px; }
-    .icon-select { flex:1; min-width:180px; }
-    .icon-select ha-selector { display:block; width:100%; }
-    .small { flex:0 0 90px; min-width:90px; }
+    .tab-entry { margin:8px 0; border:1px solid var(--divider-color,#ddd); border-radius:8px; overflow:hidden; }
+    .tab-summary { display:flex; align-items:center; gap:12px; padding:10px 12px; min-height:42px; }
+    .tab-summary ha-icon { flex:none; color:var(--secondary-text-color,#666); }
+    .tab-title { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:500; }
+    .tab-meta { color:var(--secondary-text-color,#666); font-size:.85rem; white-space:nowrap; }
+    .tab-summary button { flex:none; }
+    .tab-editor { border-top:1px solid var(--divider-color,#ddd); padding:14px 12px; }
+    .tab-fields { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) 145px;
+      gap:12px; align-items:end; }
+    .tab-fields label, .tab-fields .icon-field { min-width:0; width:100%; }
+    .tab-fields label input { width:100%; }
+    .icon-field { display:flex; flex-direction:column; gap:4px; font-size:.87rem; }
+    .icon-field ha-selector { display:block; width:100%; }
+    .icon-field .hint { margin:4px 0; }
+    .tab-help { font-size:.82rem; margin:8px 0 0; }
+    .tab-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+    .tab-actions .remove-tab { margin-left:auto; }
+    .remove-confirm { margin-top:12px; padding:12px; border:1px solid var(--divider-color,#ddd);
+      border-radius:8px; }
+    .remove-confirm p { margin:0 0 10px; }
+    .remove-confirm button { margin-right:8px; }
     .actions { display:flex; gap:12px; flex-wrap:wrap; align-items:center;
-      position:sticky; bottom:0; z-index:4; margin-top:18px;
-      padding:12px 0 calc(12px + env(safe-area-inset-bottom));
+      margin-top:18px; padding:12px 0;
       background:var(--ha-card-background,var(--card-background-color,#fff));
       border-top:1px solid var(--divider-color,#ddd); }
     .actions p { margin:0; }
@@ -53,9 +62,10 @@ const styles = `
     .error { color:var(--error-color,#d32f2f); }
     .success { color:var(--success-color,#2e7d32); }
     @container (max-width:640px) {
-      .tab-row, .tab-row.with-actions { grid-template-columns:minmax(0,1fr) 100px; gap:8px; }
-      .tab-row .tab-name, .tab-row .tab-actions { grid-column:1/-1; }
-      .tab-row .tab-actions { justify-content:flex-end; flex-wrap:wrap; }
+      .tab-fields { grid-template-columns:minmax(0,1fr); }
+      .tab-summary { flex-wrap:wrap; gap:8px; }
+      .tab-summary button { margin-left:auto; }
+      .tab-actions .remove-tab { margin-left:0; }
     }
     @media (max-width:600px) {
       .panel { padding:14px; }
@@ -224,6 +234,9 @@ class CameraDashboardEditor extends HTMLElement {
     this._loading = false;
     this._mode = "create";
     this._status = "";
+    this._dirty = false;
+    this._expandedGroupId = null;
+    this._pendingRemoveId = null;
     this._iconPickerReady = false;
     this.addEventListener("change", (event) => this._change(event));
     this.addEventListener("click", (event) => this._click(event));
@@ -287,12 +300,15 @@ class CameraDashboardEditor extends HTMLElement {
 
   _setConfig(config, rerender = true) {
     this._config = config;
+    this._dirty = true;
     this._status = "Unsaved changes";
     if (this._mode === "create") this._emit();
     if (rerender) this.render();
     else {
       const status = this.querySelector(".actions [role=status]");
       if (status) { status.textContent = this._status; status.className = "hint"; }
+      const save = this.querySelector('.actions [data-action="save"]');
+      if (save) save.disabled = false;
     }
   }
 
@@ -330,6 +346,13 @@ class CameraDashboardEditor extends HTMLElement {
           },
         }, false);
       }
+      if (field === "icon") {
+        for (const preview of this.querySelectorAll("[data-icon-preview]")) {
+          if (preview.dataset.iconPreview === groupId) {
+            preview.setAttribute("icon", adjusted || "mdi:help-circle-outline");
+          }
+        }
+      }
     }
   }
 
@@ -338,16 +361,31 @@ class CameraDashboardEditor extends HTMLElement {
     if (!action) return;
     if (action === "add-category") {
       const id = `custom:${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+      this._expandedGroupId = id;
       this._setConfig({
         ...this._config, categories: [...(this._config.categories || []),
           { id, title: "New tab", icon: "mdi:cctv", max_columns: 2 }],
       });
-    } else if (action === "remove-category") {
+    } else if (action === "edit-tab") {
       const id = event.target.dataset.groupId;
+      this._expandedGroupId = this._expandedGroupId === id ? null : id;
+      this._pendingRemoveId = null;
+      this.render();
+    } else if (action === "remove-category") {
+      this._pendingRemoveId = event.target.dataset.groupId;
+      this.render();
+    } else if (action === "cancel-remove") {
+      this._pendingRemoveId = null;
+      this.render();
+    } else if (action === "confirm-remove") {
+      const id = event.target.dataset.groupId;
+      if (id !== this._pendingRemoveId) return;
       const camera_options = { ...this._config.camera_options };
       for (const [key, option] of Object.entries(camera_options)) {
         if (option.category === id) camera_options[key] = { ...option, category: UNASSIGNED };
       }
+      this._pendingRemoveId = null;
+      this._expandedGroupId = null;
       this._setConfig({
         ...this._config, camera_options,
         categories: (this._config.categories || []).filter((group) => group.id !== id),
@@ -394,19 +432,41 @@ class CameraDashboardEditor extends HTMLElement {
       id: UNASSIGNED, title: "Unassigned", icon: "mdi:help-circle-outline",
       ...this._config.group_options?.[UNASSIGNED],
     };
-    const row = (group) => `<div class="item">
-      <div class="tab-row ${custom && group.id !== UNASSIGNED ? "with-actions" : ""}">
-        <label class="tab-name">Name<input data-field="title" data-group-id="${esc(group.id)}" value="${esc(group.title)}"></label>
-        <div class="icon-select">${this._iconPickerReady && this._hass
-          ? `<ha-selector data-group-id="${esc(group.id)}" data-icon="${esc(group.icon)}"></ha-selector>`
-          : `<span class="hint">${this._iconPickerError ? "Icon picker unavailable" : "Loading icons…"}</span>`}</div>
-        <label class="small" title="Maximum camera columns on wide screens; narrow screens use fewer">Camera columns<input type="number" min="1" max="4" data-field="max_columns"
-          data-group-id="${esc(group.id)}" value="${esc(group.max_columns || 2)}"></label>
-        ${custom && group.id !== UNASSIGNED ? `<div class="tab-actions"><button data-action="move-category" data-group-id="${esc(group.id)}" data-offset="-1" title="Move up">↑</button>
-          <button data-action="move-category" data-group-id="${esc(group.id)}" data-offset="1" title="Move down">↓</button>
-          <button data-action="remove-category" data-group-id="${esc(group.id)}">Remove</button></div>` : ""}
-      </div>
-    </div>`;
+    const row = (group, index = -1) => {
+      const expanded = this._expandedGroupId === group.id;
+      const editable = custom && group.id !== UNASSIGNED;
+      const columns = group.max_columns || 2;
+      return `<div class="tab-entry">
+        <div class="tab-summary">
+          <ha-icon icon="${esc(group.icon || "mdi:help-circle-outline")}" data-icon-preview="${esc(group.id)}" aria-hidden="true"></ha-icon>
+          <span class="tab-title">${esc(group.title)}</span>
+          <span class="tab-meta">${group.id === UNASSIGNED ? "Built-in · " : ""}Up to ${esc(columns)} columns</span>
+          <button type="button" data-action="edit-tab" data-group-id="${esc(group.id)}"
+            aria-expanded="${expanded}" aria-label="${expanded ? "Close settings for" : "Edit"} ${esc(group.title)}">${expanded ? "Done" : "Edit"}</button>
+        </div>
+        ${expanded ? `<div class="tab-editor">
+          <div class="tab-fields">
+            <label>Name<input data-field="title" data-group-id="${esc(group.id)}" value="${esc(group.title)}"></label>
+            <div class="icon-field"><span>Icon <ha-icon icon="${esc(group.icon || "mdi:help-circle-outline")}" data-icon-preview="${esc(group.id)}" aria-hidden="true"></ha-icon></span>
+              ${this._iconPickerReady && this._hass
+                ? `<ha-selector data-group-id="${esc(group.id)}" data-icon="${esc(group.icon)}"></ha-selector>`
+                : `<span class="hint">${this._iconPickerError ? "Icon picker unavailable" : "Loading icons…"}</span>`}</div>
+            <label>Maximum columns on wide screens<input type="number" min="1" max="4" data-field="max_columns"
+              data-group-id="${esc(group.id)}" value="${esc(columns)}"></label>
+          </div>
+          <p class="hint tab-help">Narrow screens use fewer columns automatically.</p>
+          ${editable ? `<div class="tab-actions">
+            <button type="button" data-action="move-category" data-group-id="${esc(group.id)}" data-offset="-1" ${index === 0 ? "disabled" : ""}>Move up</button>
+            <button type="button" data-action="move-category" data-group-id="${esc(group.id)}" data-offset="1" ${index === groups.length - 1 ? "disabled" : ""}>Move down</button>
+            <button type="button" class="remove-tab" data-action="remove-category" data-group-id="${esc(group.id)}">Remove tab…</button>
+          </div>${this._pendingRemoveId === group.id ? `<div class="remove-confirm" role="alert">
+            <p>Remove ${esc(group.title)}? Cameras assigned to this tab will move to Unassigned.</p>
+            <button type="button" data-action="confirm-remove" data-group-id="${esc(group.id)}">Remove tab</button>
+            <button type="button" data-action="cancel-remove">Cancel</button>
+          </div>` : ""}` : ""}
+        </div>` : ""}
+      </div>`;
+    };
     let tabs;
     if (this._loading && !custom) tabs = `<p class="hint">Loading camera tabs…</p>`;
     else if (custom || !this._hass || this._error) tabs = groups.map(row).join("");
@@ -448,7 +508,7 @@ class CameraDashboardEditor extends HTMLElement {
         ${!this._hass || this._loading || this._error ? "disabled" : ""}>
         Put newly added ONVIF cameras in Unassigned</label>
         <p class="hint">Cameras already on this dashboard keep their tabs. Later cameras wait in Unassigned until you choose a category.</p>`}
-      <h3>Tabs</h3>${this._groupRows()}
+      <h3>${custom ? "Your tabs" : "Tabs"}</h3>${this._groupRows()}
       ${this._mode === "manage" ? `
         <details class="import"><summary>Import tabs from an existing dashboard</summary>
         <div class="row"><label>Source dashboard<select id="source-dashboard">
@@ -457,7 +517,7 @@ class CameraDashboardEditor extends HTMLElement {
             .map((item) => `<option value="${esc(item.url_path)}">${esc(item.title || item.url_path)}</option>`).join("")}
         </select></label><button data-action="import">Import into draft</button></div>
         <p class="hint">Imports tab names, icons, layout, and camera placement. Review the tabs before saving.</p></details>
-        <div class="actions"><button class="primary" data-action="save" ${this._saving ? "disabled" : ""}>${this._saving ? "Saving…" : "Save dashboard"}</button>
+        <div class="actions"><button class="primary" data-action="save" ${this._saving || !this._dirty ? "disabled" : ""}>${this._saving ? "Saving…" : "Save changes"}</button>
           <p role="status" class="${this._status === "Saved" ? "success" : this._status.startsWith("Save failed") ? "error" : "hint"}">${esc(this._status)}</p></div>
       ` : ""}
     </div>`;
@@ -465,7 +525,7 @@ class CameraDashboardEditor extends HTMLElement {
       picker.hass = this._hass;
       picker.selector = { icon: {} };
       picker.value = picker.dataset.icon;
-      picker.label = "Icon";
+      picker.label = "Choose icon";
       picker.required = false;
       picker.addEventListener("value-changed", (event) => {
         event.stopPropagation();
@@ -512,6 +572,7 @@ class CameraDashboardEditor extends HTMLElement {
         type: "lovelace/config/save", url_path: this._dashboardPath,
         config: { ...raw, strategy: { ...raw.strategy, ...this._config } },
       });
+      this._dirty = false;
       this._status = "Saved";
     } catch (error) {
       this._status = `Save failed: ${error.message || error}`;
