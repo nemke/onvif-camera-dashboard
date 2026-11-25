@@ -151,6 +151,8 @@ test("settings separates the built-in Unassigned tab from custom tabs", () => {
   const unassigned = manager.innerHTML.indexOf('class="unassigned-settings"');
   assert.ok(customRow < addTab && addTab < unassigned);
   assert.match(manager.innerHTML.slice(unassigned), /Built-in tab for cameras without a category/);
+  assert.match(manager.innerHTML.slice(unassigned), /<ha-icon icon="mdi:inbox-outline"/);
+  assert.match(manager.innerHTML, /class="icon-button accent" data-action="add-category"/);
   assert.doesNotMatch(manager.innerHTML.slice(unassigned), /data-action="remove-category"/);
 });
 
@@ -169,8 +171,10 @@ test("tab rows expand one at a time and show movement limits", async () => {
   assert.match(manager.innerHTML, /data-field="title" data-group-id="custom:front"/);
   assert.doesNotMatch(manager.innerHTML, /data-field="title" data-group-id="custom:back"/);
   assert.match(manager.innerHTML, /data-offset="-1" disabled/);
-  assert.match(manager.innerHTML, /data-offset="1" >Move down/);
+  assert.match(manager.innerHTML, /data-offset="1" ><ha-icon icon="mdi:arrow-down"[^>]*><\/ha-icon>Move down/);
   assert.match(manager.innerHTML, /<ha-icon icon="mdi:gate"/);
+  await manager._click({ target: { closest: () => ({ dataset: { action: "edit-tab", groupId: "custom:front" } }) } });
+  assert.equal(manager._expandedGroupId, null);
 });
 
 test("removing a tab confirms its cameras move to Unassigned", async () => {
@@ -183,6 +187,7 @@ test("removing a tab confirms its cameras move to Unassigned", async () => {
     camera_options: { "onvif:front": { category: "custom:front" } } };
   manager._expandedGroupId = "custom:front";
   manager.render();
+  assert.match(manager.innerHTML, /<ha-icon icon="mdi:view-dashboard-outline"/);
   await manager._click({ target: { dataset: { action: "remove-category", groupId: "custom:front" } } });
   assert.equal(manager._config.categories.length, 1);
   assert.match(manager.innerHTML, /Cameras assigned to this tab will move to Unassigned/);

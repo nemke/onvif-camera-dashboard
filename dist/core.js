@@ -85,7 +85,7 @@ export function groupsFor(config, hass, cameras) {
   }
   if (cameras.some((entry) => groupForCamera(entry, config, hass) === UNASSIGNED)) {
     groups.push({
-      id: UNASSIGNED, title: "Unassigned", icon: "mdi:help-circle-outline",
+      id: UNASSIGNED, title: "Unassigned", icon: "mdi:inbox-outline",
       ...(config.group_options?.[UNASSIGNED] || {}),
     });
   }

@@ -25,13 +25,22 @@ const styles = `
     button.primary { background:#005b83;
       background:color-mix(in srgb,var(--primary-color,#03a9f4) 45%,black);
       border-color:transparent; color:#fff; }
+    button.icon-button { display:inline-flex; align-items:center; justify-content:center; gap:6px; }
+    button.icon-button ha-icon { width:18px; height:18px; --mdc-icon-size:18px; color:inherit; }
+    button.accent { color:var(--primary-color,#03a9f4);
+      background:color-mix(in srgb,var(--primary-color,#03a9f4) 10%,var(--card-background-color,#fff));
+      border-color:color-mix(in srgb,var(--primary-color,#03a9f4) 25%,var(--divider-color,#ddd)); }
+    button.danger { color:var(--error-color,#d32f2f);
+      background:color-mix(in srgb,var(--error-color,#d32f2f) 9%,var(--card-background-color,#fff));
+      border-color:color-mix(in srgb,var(--error-color,#d32f2f) 25%,var(--divider-color,#ddd)); }
     button:disabled { opacity:.5; cursor:default; }
     .tab-entry { margin:8px 0; border:1px solid var(--divider-color,#ddd); border-radius:8px; overflow:hidden; }
     .tab-summary { display:flex; align-items:center; gap:12px; padding:10px 12px; min-height:42px; }
-    .tab-summary ha-icon { flex:none; color:var(--secondary-text-color,#666); }
+    .tab-summary > ha-icon { flex:none; color:var(--primary-color,#03a9f4); }
     .tab-title { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:500; }
     .tab-meta { color:var(--secondary-text-color,#666); font-size:.85rem; white-space:nowrap; }
-    .tab-summary button { flex:none; }
+    .tab-summary button { flex:none; color:var(--primary-color,#03a9f4); }
+    .tab-summary button[aria-expanded="true"] { background:color-mix(in srgb,var(--primary-color,#03a9f4) 10%,var(--card-background-color,#fff)); }
     .tab-editor { border-top:1px solid var(--divider-color,#ddd); padding:14px 12px; }
     .tab-fields { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) 145px;
       gap:12px; align-items:end; }
@@ -42,8 +51,10 @@ const styles = `
     .icon-field .hint { margin:4px 0; }
     .tab-help { font-size:.82rem; margin:8px 0 0; }
     .tab-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+    .tab-actions button { flex:none; }
     .tab-actions .remove-tab { margin-left:auto; }
     .remove-confirm { margin-top:12px; padding:12px; border:1px solid var(--divider-color,#ddd);
+      border-left:3px solid var(--error-color,#d32f2f);
       border-radius:8px; }
     .remove-confirm p { margin:0 0 10px; }
     .remove-confirm button { margin-right:8px; }
@@ -66,6 +77,9 @@ const styles = `
       .tab-summary { flex-wrap:wrap; gap:8px; }
       .tab-summary button { margin-left:auto; }
       .tab-actions .remove-tab { margin-left:0; }
+    }
+    @container (max-width:420px) {
+      .tab-summary .tab-meta { order:3; width:calc(100% - 32px); margin-left:32px; }
     }
     @media (max-width:600px) {
       .panel { padding:14px; }
@@ -349,7 +363,7 @@ class CameraDashboardEditor extends HTMLElement {
       if (field === "icon") {
         for (const preview of this.querySelectorAll("[data-icon-preview]")) {
           if (preview.dataset.iconPreview === groupId) {
-            preview.setAttribute("icon", adjusted || "mdi:help-circle-outline");
+            preview.setAttribute("icon", adjusted || (groupId === UNASSIGNED ? "mdi:inbox-outline" : "mdi:view-dashboard-outline"));
           }
         }
       }
@@ -357,7 +371,8 @@ class CameraDashboardEditor extends HTMLElement {
   }
 
   async _click(event) {
-    const action = event.target?.dataset?.action;
+    const control = event.target?.closest?.("[data-action]") || event.target;
+    const action = control?.dataset?.action;
     if (!action) return;
     if (action === "add-category") {
       const id = `custom:${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -367,18 +382,18 @@ class CameraDashboardEditor extends HTMLElement {
           { id, title: "New tab", icon: "mdi:cctv", max_columns: 2 }],
       });
     } else if (action === "edit-tab") {
-      const id = event.target.dataset.groupId;
+      const id = control.dataset.groupId;
       this._expandedGroupId = this._expandedGroupId === id ? null : id;
       this._pendingRemoveId = null;
       this.render();
     } else if (action === "remove-category") {
-      this._pendingRemoveId = event.target.dataset.groupId;
+      this._pendingRemoveId = control.dataset.groupId;
       this.render();
     } else if (action === "cancel-remove") {
       this._pendingRemoveId = null;
       this.render();
     } else if (action === "confirm-remove") {
-      const id = event.target.dataset.groupId;
+      const id = control.dataset.groupId;
       if (id !== this._pendingRemoveId) return;
       const camera_options = { ...this._config.camera_options };
       for (const [key, option] of Object.entries(camera_options)) {
@@ -391,8 +406,8 @@ class CameraDashboardEditor extends HTMLElement {
         categories: (this._config.categories || []).filter((group) => group.id !== id),
       });
     } else if (action === "move-category") {
-      const id = event.target.dataset.groupId;
-      const offset = Number(event.target.dataset.offset);
+      const id = control.dataset.groupId;
+      const offset = Number(control.dataset.offset);
       const categories = [...(this._config.categories || [])];
       const from = categories.findIndex((group) => group.id === id);
       const to = from + offset;
@@ -429,25 +444,26 @@ class CameraDashboardEditor extends HTMLElement {
     const custom = this._config.group_by === "custom";
     const groups = this._groupOptions();
     const unassigned = {
-      id: UNASSIGNED, title: "Unassigned", icon: "mdi:help-circle-outline",
+      id: UNASSIGNED, title: "Unassigned", icon: "mdi:inbox-outline",
       ...this._config.group_options?.[UNASSIGNED],
     };
     const row = (group, index = -1) => {
       const expanded = this._expandedGroupId === group.id;
       const editable = custom && group.id !== UNASSIGNED;
       const columns = group.max_columns || 2;
+      const icon = group.icon || (group.id === UNASSIGNED ? "mdi:inbox-outline" : "mdi:view-dashboard-outline");
       return `<div class="tab-entry">
         <div class="tab-summary">
-          <ha-icon icon="${esc(group.icon || "mdi:help-circle-outline")}" data-icon-preview="${esc(group.id)}" aria-hidden="true"></ha-icon>
+          <ha-icon icon="${esc(icon)}" data-icon-preview="${esc(group.id)}" aria-hidden="true"></ha-icon>
           <span class="tab-title">${esc(group.title)}</span>
           <span class="tab-meta">${group.id === UNASSIGNED ? "Built-in · " : ""}Up to ${esc(columns)} columns</span>
-          <button type="button" data-action="edit-tab" data-group-id="${esc(group.id)}"
-            aria-expanded="${expanded}" aria-label="${expanded ? "Close settings for" : "Edit"} ${esc(group.title)}">${expanded ? "Done" : "Edit"}</button>
+          <button type="button" class="icon-button" data-action="edit-tab" data-group-id="${esc(group.id)}"
+            aria-expanded="${expanded}" aria-label="${expanded ? "Close settings for" : "Edit"} ${esc(group.title)}"><ha-icon icon="${expanded ? "mdi:check" : "mdi:pencil-outline"}" aria-hidden="true"></ha-icon>${expanded ? "Done" : "Edit"}</button>
         </div>
         ${expanded ? `<div class="tab-editor">
           <div class="tab-fields">
             <label>Name<input data-field="title" data-group-id="${esc(group.id)}" value="${esc(group.title)}"></label>
-            <div class="icon-field"><span>Icon <ha-icon icon="${esc(group.icon || "mdi:help-circle-outline")}" data-icon-preview="${esc(group.id)}" aria-hidden="true"></ha-icon></span>
+            <div class="icon-field"><span>Icon <ha-icon icon="${esc(icon)}" data-icon-preview="${esc(group.id)}" aria-hidden="true"></ha-icon></span>
               ${this._iconPickerReady && this._hass
                 ? `<ha-selector data-group-id="${esc(group.id)}" data-icon="${esc(group.icon)}"></ha-selector>`
                 : `<span class="hint">${this._iconPickerError ? "Icon picker unavailable" : "Loading icons…"}</span>`}</div>
@@ -456,13 +472,13 @@ class CameraDashboardEditor extends HTMLElement {
           </div>
           <p class="hint tab-help">Narrow screens use fewer columns automatically.</p>
           ${editable ? `<div class="tab-actions">
-            <button type="button" data-action="move-category" data-group-id="${esc(group.id)}" data-offset="-1" ${index === 0 ? "disabled" : ""}>Move up</button>
-            <button type="button" data-action="move-category" data-group-id="${esc(group.id)}" data-offset="1" ${index === groups.length - 1 ? "disabled" : ""}>Move down</button>
-            <button type="button" class="remove-tab" data-action="remove-category" data-group-id="${esc(group.id)}">Remove tab…</button>
+            <button type="button" class="icon-button" data-action="move-category" data-group-id="${esc(group.id)}" data-offset="-1" ${index === 0 ? "disabled" : ""}><ha-icon icon="mdi:arrow-up" aria-hidden="true"></ha-icon>Move up</button>
+            <button type="button" class="icon-button" data-action="move-category" data-group-id="${esc(group.id)}" data-offset="1" ${index === groups.length - 1 ? "disabled" : ""}><ha-icon icon="mdi:arrow-down" aria-hidden="true"></ha-icon>Move down</button>
+            <button type="button" class="icon-button danger remove-tab" data-action="remove-category" data-group-id="${esc(group.id)}"><ha-icon icon="mdi:delete-outline" aria-hidden="true"></ha-icon>Remove tab…</button>
           </div>${this._pendingRemoveId === group.id ? `<div class="remove-confirm" role="alert">
             <p>Remove ${esc(group.title)}? Cameras assigned to this tab will move to Unassigned.</p>
-            <button type="button" data-action="confirm-remove" data-group-id="${esc(group.id)}">Remove tab</button>
-            <button type="button" data-action="cancel-remove">Cancel</button>
+            <button type="button" class="icon-button danger" data-action="confirm-remove" data-group-id="${esc(group.id)}"><ha-icon icon="mdi:delete-outline" aria-hidden="true"></ha-icon>Remove tab</button>
+            <button type="button" class="icon-button" data-action="cancel-remove"><ha-icon icon="mdi:close" aria-hidden="true"></ha-icon>Cancel</button>
           </div>` : ""}` : ""}
         </div>` : ""}
       </div>`;
@@ -480,7 +496,7 @@ class CameraDashboardEditor extends HTMLElement {
         <summary>Other ${kind} (${unused.length})</summary>${unused.map(row).join("")}</details>` : ""}`;
     }
     return `${tabs || (custom ? '<p class="hint">No custom tabs yet.</p>' : "")}
-      ${custom ? `<button data-action="add-category">Add tab</button>` : ""}
+      ${custom ? `<button type="button" class="icon-button accent" data-action="add-category"><ha-icon icon="mdi:plus" aria-hidden="true"></ha-icon>Add tab</button>` : ""}
       <section class="unassigned-settings" aria-labelledby="unassigned-settings-title">
         <h3 id="unassigned-settings-title">Unassigned tab</h3>
         <p class="hint">Built-in tab for cameras without a category. You can change its name, icon, and columns.</p>
@@ -496,7 +512,7 @@ class CameraDashboardEditor extends HTMLElement {
       <h2>Dashboard tabs</h2>
       <p>Choose how tabs are organized. Use Edit camera on a feed to change that camera.</p>
       ${this._error ? `<p class="error">${esc(this._error)}</p>` : ""}
-      ${this._iconPickerError ? `<p class="error">${esc(this._iconPickerError)} <button data-action="retry-icons">Retry</button></p>` : ""}
+      ${this._iconPickerError ? `<p class="error">${esc(this._iconPickerError)} <button type="button" class="icon-button" data-action="retry-icons"><ha-icon icon="mdi:refresh" aria-hidden="true"></ha-icon>Retry</button></p>` : ""}
       <div class="row">
         <label>Organize tabs by<select data-field="group_by">
           ${[["area", "Area"], ["floor", "Floor"], ["custom", "Custom categories"]]
@@ -515,9 +531,9 @@ class CameraDashboardEditor extends HTMLElement {
           <option value="">Choose dashboard</option>
           ${this._dashboards.filter((item) => item.url_path && item.url_path !== this._dashboardPath)
             .map((item) => `<option value="${esc(item.url_path)}">${esc(item.title || item.url_path)}</option>`).join("")}
-        </select></label><button data-action="import">Import into draft</button></div>
+        </select></label><button type="button" class="icon-button" data-action="import"><ha-icon icon="mdi:import" aria-hidden="true"></ha-icon>Import into draft</button></div>
         <p class="hint">Imports tab names, icons, layout, and camera placement. Review the tabs before saving.</p></details>
-        <div class="actions"><button class="primary" data-action="save" ${this._saving || !this._dirty ? "disabled" : ""}>${this._saving ? "Saving…" : "Save changes"}</button>
+        <div class="actions"><button type="button" class="primary icon-button" data-action="save" ${this._saving || !this._dirty ? "disabled" : ""}><ha-icon icon="mdi:content-save-outline" aria-hidden="true"></ha-icon>${this._saving ? "Saving…" : "Save changes"}</button>
           <p role="status" class="${this._status === "Saved" ? "success" : this._status.startsWith("Save failed") ? "error" : "hint"}">${esc(this._status)}</p></div>
       ` : ""}
     </div>`;
