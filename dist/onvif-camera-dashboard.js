@@ -27,8 +27,10 @@ const styles = `
     button.primary { background:#005b83;
       background:color-mix(in srgb,var(--primary-color,#03a9f4) 45%,black);
       border-color:transparent; color:#fff; }
-    button.icon-button { display:inline-flex; align-items:center; justify-content:center; gap:6px; }
-    button.icon-button ha-icon { width:18px; height:18px; --mdc-icon-size:18px; color:inherit; }
+    button.icon-button { display:inline-flex; align-items:center; justify-content:center;
+      gap:6px; min-height:40px; line-height:18px; white-space:nowrap; }
+    button.icon-button ha-icon { display:block; flex:none; width:18px; height:18px;
+      --mdc-icon-size:18px; color:inherit; }
     button.accent { color:var(--primary-color,#03a9f4);
       background:color-mix(in srgb,var(--primary-color,#03a9f4) 10%,var(--card-background-color,#fff));
       border-color:color-mix(in srgb,var(--primary-color,#03a9f4) 25%,var(--divider-color,#ddd)); }
@@ -41,7 +43,7 @@ const styles = `
     .tab-summary > ha-icon { flex:none; color:var(--primary-color,#03a9f4); }
     .tab-title { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:500; }
     .tab-meta { color:var(--secondary-text-color,#666); font-size:.85rem; white-space:nowrap; }
-    .tab-summary button { flex:none; color:var(--primary-color,#03a9f4); }
+    .tab-summary button { flex:none; min-width:84px; color:var(--primary-color,#03a9f4); }
     .tab-summary button[aria-expanded="true"] { background:color-mix(in srgb,var(--primary-color,#03a9f4) 10%,var(--card-background-color,#fff)); }
     .tab-editor { border-top:1px solid var(--divider-color,#ddd); padding:14px 12px; }
     .tab-fields { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) 145px;
@@ -58,6 +60,7 @@ const styles = `
     .tab-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
     .tab-actions button { flex:none; }
     .tab-actions .remove-tab { margin-left:auto; }
+    .add-tab-button { margin-left:12px; }
     .remove-confirm { margin-top:12px; padding:12px; border:1px solid var(--divider-color,#ddd);
       border-left:3px solid var(--error-color,#d32f2f);
       border-radius:8px; }
@@ -504,7 +507,7 @@ class CameraDashboardEditor extends HTMLElement {
         <summary>Other ${kind} (${unused.length})</summary>${unused.map(row).join("")}</details>` : ""}`;
     }
     return `${tabs || (custom ? '<p class="hint">No custom tabs yet.</p>' : "")}
-      ${custom ? `<button type="button" class="icon-button accent" data-action="add-category"><ha-icon icon="mdi:plus" aria-hidden="true"></ha-icon>Add tab</button>` : ""}
+      ${custom ? `<button type="button" class="icon-button accent add-tab-button" data-action="add-category"><ha-icon icon="mdi:plus" aria-hidden="true"></ha-icon>Add tab</button>` : ""}
       <section class="unassigned-settings" aria-labelledby="unassigned-settings-title">
         <h3 id="unassigned-settings-title">Unassigned tab</h3>
         <p class="hint">Built-in tab for cameras without a category. You can change its name, icon, and columns.</p>

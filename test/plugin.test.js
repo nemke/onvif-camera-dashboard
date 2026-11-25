@@ -152,7 +152,7 @@ test("settings separates the built-in Unassigned tab from custom tabs", () => {
   assert.ok(customRow < addTab && addTab < unassigned);
   assert.match(manager.innerHTML.slice(unassigned), /Built-in tab for cameras without a category/);
   assert.match(manager.innerHTML.slice(unassigned), /<ha-icon icon="mdi:inbox-outline"/);
-  assert.match(manager.innerHTML, /class="icon-button accent" data-action="add-category"/);
+  assert.match(manager.innerHTML, /class="icon-button accent add-tab-button" data-action="add-category"/);
   assert.doesNotMatch(manager.innerHTML.slice(unassigned), /data-action="remove-category"/);
 });
 
