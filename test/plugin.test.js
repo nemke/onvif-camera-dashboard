@@ -133,6 +133,22 @@ test("settings keeps camera tabs visible and folds away unused areas", () => {
     < manager.innerHTML.indexOf('data-group-id="area:garage"'));
 });
 
+test("settings separates the built-in Unassigned tab from custom tabs", () => {
+  const Manager = elements.get("onvif-camera-dashboard-manager");
+  const manager = new Manager();
+  manager._ready = true;
+  manager._hass = hass;
+  manager._config = { type: "custom:onvif-camera-dashboard", group_by: "custom",
+    categories: [{ id: "custom:front", title: "Front Yard", icon: "mdi:gate" }] };
+  manager.render();
+  const customRow = manager.innerHTML.indexOf('data-group-id="custom:front"');
+  const addTab = manager.innerHTML.indexOf('data-action="add-category"');
+  const unassigned = manager.innerHTML.indexOf('class="unassigned-settings"');
+  assert.ok(customRow < addTab && addTab < unassigned);
+  assert.match(manager.innerHTML.slice(unassigned), /Built-in tab for cameras without a category/);
+  assert.doesNotMatch(manager.innerHTML.slice(unassigned), /data-action="remove-category"/);
+});
+
 test("editing a tab name keeps the save control mounted", () => {
   const Manager = elements.get("onvif-camera-dashboard-manager");
   const manager = new Manager();

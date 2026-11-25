@@ -45,6 +45,10 @@ const styles = `
     .actions p { margin:0; }
     .other-groups { margin-top:12px; }
     .other-groups summary { cursor:pointer; padding:10px 0; }
+    .unassigned-settings { margin-top:24px; padding-top:16px;
+      border-top:1px solid var(--divider-color,#ddd); }
+    .unassigned-settings h3 { margin:0 0 6px; }
+    .unassigned-settings p { margin:0 0 12px; }
     .import { margin-top:20px; } .import summary { cursor:pointer; }
     .error { color:var(--error-color,#d32f2f); }
     .success { color:var(--success-color,#2e7d32); }
@@ -385,10 +389,11 @@ class CameraDashboardEditor extends HTMLElement {
 
   _groupRows() {
     const custom = this._config.group_by === "custom";
-    const groups = [...this._groupOptions(), {
+    const groups = this._groupOptions();
+    const unassigned = {
       id: UNASSIGNED, title: "Unassigned", icon: "mdi:help-circle-outline",
       ...this._config.group_options?.[UNASSIGNED],
-    }];
+    };
     const row = (group) => `<div class="item">
       <div class="tab-row ${custom && group.id !== UNASSIGNED ? "with-actions" : ""}">
         <label class="tab-name">Name<input data-field="title" data-group-id="${esc(group.id)}" value="${esc(group.title)}"></label>
@@ -402,16 +407,25 @@ class CameraDashboardEditor extends HTMLElement {
           <button data-action="remove-category" data-group-id="${esc(group.id)}">Remove</button></div>` : ""}
       </div>
     </div>`;
-    if (this._loading && !custom) return `<p class="hint">Loading camera tabs…</p>`;
-    if (custom || !this._hass || this._error) return groups.map(row).join("");
-    const visible = this._entries.filter((entry) => !cameraOption(this._config, entry).hidden);
-    const activeIds = new Set(groupsFor(this._config, this._hass, visible).map((group) => group.id));
-    activeIds.add(UNASSIGNED);
-    const active = groups.filter((group) => activeIds.has(group.id));
-    const unused = groups.filter((group) => !activeIds.has(group.id));
-    const kind = this._config.group_by === "floor" ? "floors" : "areas";
-    return `${active.map(row).join("")}${unused.length ? `<details class="other-groups" ${this._otherGroupsOpen ? "open" : ""}>
-      <summary>Other ${kind} (${unused.length})</summary>${unused.map(row).join("")}</details>` : ""}`;
+    let tabs;
+    if (this._loading && !custom) tabs = `<p class="hint">Loading camera tabs…</p>`;
+    else if (custom || !this._hass || this._error) tabs = groups.map(row).join("");
+    else {
+      const visible = this._entries.filter((entry) => !cameraOption(this._config, entry).hidden);
+      const activeIds = new Set(groupsFor(this._config, this._hass, visible).map((group) => group.id));
+      const active = groups.filter((group) => activeIds.has(group.id));
+      const unused = groups.filter((group) => !activeIds.has(group.id));
+      const kind = this._config.group_by === "floor" ? "floors" : "areas";
+      tabs = `${active.map(row).join("")}${unused.length ? `<details class="other-groups" ${this._otherGroupsOpen ? "open" : ""}>
+        <summary>Other ${kind} (${unused.length})</summary>${unused.map(row).join("")}</details>` : ""}`;
+    }
+    return `${tabs || (custom ? '<p class="hint">No custom tabs yet.</p>' : "")}
+      ${custom ? `<button data-action="add-category">Add tab</button>` : ""}
+      <section class="unassigned-settings" aria-labelledby="unassigned-settings-title">
+        <h3 id="unassigned-settings-title">Unassigned tab</h3>
+        <p class="hint">Built-in tab for cameras without a category. You can change its name, icon, and columns.</p>
+        ${row(unassigned)}
+      </section>`;
   }
 
   render() {
@@ -435,7 +449,6 @@ class CameraDashboardEditor extends HTMLElement {
         Put newly added ONVIF cameras in Unassigned</label>
         <p class="hint">Cameras already on this dashboard keep their tabs. Later cameras wait in Unassigned until you choose a category.</p>`}
       <h3>Tabs</h3>${this._groupRows()}
-      ${custom ? `<button data-action="add-category">Add tab</button>` : ""}
       ${this._mode === "manage" ? `
         <details class="import"><summary>Import tabs from an existing dashboard</summary>
         <div class="row"><label>Source dashboard<select id="source-dashboard">
