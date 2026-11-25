@@ -962,9 +962,12 @@ class CameraDashboardCameraCard extends HTMLElement {
         border-radius:8px; min-height:44px; padding:8px 12px;
         color:var(--primary-text-color); background:var(--secondary-background-color,#eee); }
       onvif-camera-dashboard-camera-card .camera-dialog button.icon-button { display:inline-flex;
-        align-items:center; justify-content:center; gap:8px; }
+        align-items:center; justify-content:center; gap:8px; line-height:18px; white-space:nowrap; }
       onvif-camera-dashboard-camera-card .camera-dialog button.icon-button ha-icon {
-        width:18px; height:18px; --mdc-icon-size:18px; color:inherit; }
+        display:block; flex:none; width:18px; height:18px; --mdc-icon-size:18px;
+        color:inherit; transform:translateY(-1px); }
+      onvif-camera-dashboard-camera-card .camera-dialog button.icon-button .button-label {
+        display:block; line-height:18px; }
       onvif-camera-dashboard-camera-card button:disabled { opacity:.5; cursor:default; }
       onvif-camera-dashboard-camera-card button.primary { color:#fff; background:#005b83;
         background:color-mix(in srgb,var(--primary-color,#03a9f4) 45%,black); }
@@ -1042,8 +1045,8 @@ class CameraDashboardCameraCard extends HTMLElement {
           <div class="camera-reorder"><h4>Position in this tab</h4>
             <ol>${this._orderListMarkup()}</ol>
             <div class="camera-reorder-actions">
-              <button type="button" class="icon-button" data-action="move-earlier"><ha-icon icon="mdi:arrow-up" aria-hidden="true"></ha-icon>Move earlier</button>
-              <button type="button" class="icon-button" data-action="move-later"><ha-icon icon="mdi:arrow-down" aria-hidden="true"></ha-icon>Move later</button>
+              <button type="button" class="icon-button" data-action="move-earlier"><ha-icon icon="mdi:arrow-up" aria-hidden="true"></ha-icon><span class="button-label">Move earlier</span></button>
+              <button type="button" class="icon-button" data-action="move-later"><ha-icon icon="mdi:arrow-down" aria-hidden="true"></ha-icon><span class="button-label">Move later</span></button>
               <span class="camera-reorder-hint"></span>
             </div>
           </div>` : ""}
@@ -1059,7 +1062,7 @@ class CameraDashboardCameraCard extends HTMLElement {
           </select></label>
         </div></details>
         <p class="camera-error" role="alert" ${this._error ? "" : "hidden"}>${esc(this._error || "")}</p>
-        <div class="camera-actions"><button type="button" class="icon-button" data-action="cancel" ${this._saving ? "disabled" : ""}><ha-icon icon="mdi:close" aria-hidden="true"></ha-icon>Cancel</button>
+        <div class="camera-actions"><button type="button" class="icon-button" data-action="cancel" ${this._saving ? "disabled" : ""}><ha-icon icon="mdi:close" aria-hidden="true"></ha-icon><span class="button-label">Cancel</span></button>
           <button type="submit" class="primary icon-button" ${this._saving ? "disabled" : ""}><ha-icon icon="mdi:content-save-outline" aria-hidden="true"></ha-icon><span class="button-label">${this._saving ? "Saving…" : "Save camera"}</span></button></div>
       </form>
     </dialog>` : ""}`;

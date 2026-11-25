@@ -360,12 +360,15 @@ test("camera editor uses a modal with common and advanced settings", () => {
   card._mountPicture = () => {};
   card.setConfig({ camera_key: "onvif:front", camera: {
     entity: "camera.front", name: "Front camera", camera_image: "camera.front",
-  }, option: {}, new_unassigned: true, image_entities: ["camera.front"], groups: [], group_by: "area" });
+  }, option: {}, new_unassigned: true, image_entities: ["camera.front"], groups: [], group_by: "area",
+  viewer_cameras: [{ key: "onvif:front", name: "Front camera" }, { key: "onvif:other", name: "Other camera" }] });
   card.hass = { user: { is_admin: true } };
   card._click({ target: { closest: () => ({ dataset: { action: "edit" } }) } });
   assert.equal(opened, true);
   assert.match(card.innerHTML, /<dialog class="camera-dialog"/);
   assert.match(card.innerHTML, /<details class="camera-advanced">/);
+  assert.match(card.innerHTML, /data-action="move-earlier"><ha-icon icon="mdi:arrow-up"[^>]*><\/ha-icon><span class="button-label">Move earlier<\/span>/);
+  assert.match(card.innerHTML, /<span class="button-label">Cancel<\/span>/);
   assert.match(card.innerHTML, /class="primary icon-button"[^>]*><ha-icon icon="mdi:content-save-outline"/);
   const actions = card.innerHTML.slice(card.innerHTML.indexOf('<div class="camera-actions">'));
   assert.ok(actions.indexOf('data-action="cancel"') < actions.indexOf('type="submit" class="primary icon-button"'));
